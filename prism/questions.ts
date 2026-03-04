@@ -1,52 +1,35 @@
-export const questions = [
-"I enjoy designing complex systems with many interconnected parts.",
-"I prefer solving real problems rather than discussing theory.",
-"I like experimenting creatively with AI tools.",
-"I enjoy explaining difficult concepts to beginners.",
-"I naturally think about how technology affects businesses.",
-"I explore how tools work internally.",
-"I enjoy building systems that automate repetitive work.",
-"I think about how users experience technology.",
-"I often break ideas into frameworks.",
-"I enjoy translating complex ideas into simple explanations.",
-"I like prototyping new product ideas quickly.",
-"I prefer coordinating work across teams to get things done.",
-"I enjoy crafting user interfaces and interaction flows.",
-"I take pleasure in teaching workshops or training sessions.",
-"I help stakeholders see how tech can solve business problems.",
-"I dig into logs and internals to debug issues.",
-"I look for opportunities to automate manual processes.",
-"I care deeply about usability and accessibility.",
-"I create blueprints and methodologies to structure thinking.",
-"I write clear how-to guides and documentation.",
-"I design architectures that scale under load.",
-"I focus on integrating disparate services into a cohesive whole.",
-"I enjoy visual and interaction design work.",
-"I get energy from mentoring junior teammates.",
-"I often consult with others about product strategy.",
-"I reverse-engineer tools to learn how they work.",
-"I build automations to save time across teams.",
-"I care about the look-and-feel of a product.",
-"I can translate technical topics for non-technical audiences.",
-"I enjoy facilitating workshops to align teams.",
-"I plan infrastructure and service layouts carefully.",
-"I drive integrations between platforms and APIs.",
-"I experiment with layout, typography, and visual systems.",
-"I enjoy creating curricula and lesson plans.",
-"I advise on go-to-market or operational decisions.",
-"I like reading source code to understand design choices.",
-"I build scripts and tools to speed repetitive tasks.",
-"I sketch wireframes and mockups before building.",
-"I explain implementation details in plain language.",
-"I enjoy mapping roles and responsibilities in projects.",
-"I design systems to be robust and fault-tolerant.",
-"I ensure different services communicate reliably.",
-"I care about the emotional impact of design on users.",
-"I develop training materials to onboard people quickly.",
-"I help clients align technology with business goals.",
-"I tinker with internals to optimize performance.",
-"I automate data flows and reporting tasks.",
-"I iterate on visual details until they feel right.",
-"I prefer breaking down subjects into teachable pieces.",
-"I create frameworks that others can adopt."
+export type PrismRole = 'architect' | 'integrator' | 'designer' | 'educator' | 'consultant'
+
+export type PrismQuestion = {
+  id: number
+  role: PrismRole
+  text: string
+  weight: number
+}
+
+const roleCycle: PrismRole[] = ['architect', 'integrator', 'designer', 'educator', 'consultant']
+
+const prompts = [
+  'I enjoy designing scalable systems that can handle growth.',
+  'I can connect people, tools, and processes into one workflow.',
+  'I care deeply about product experience and visual craft.',
+  'I like teaching concepts and mentoring peers.',
+  'I naturally align technical work with business outcomes.',
+  'I think in terms of architecture boundaries and long-term maintainability.',
+  'I am energized by API integrations and workflow orchestration.',
+  'I iterate on user flows until friction is removed.',
+  'I can simplify complex ideas into teachable frameworks.',
+  'I guide teams on strategic decision-making and prioritization.',
 ]
+
+export const questions: PrismQuestion[] = Array.from({ length: 50 }, (_, index) => {
+  const role = roleCycle[index % roleCycle.length]
+  const prompt = prompts[index % prompts.length]
+
+  return {
+    id: index + 1,
+    role,
+    text: `${prompt} (Q${index + 1})`,
+    weight: (index % 3) + 1,
+  }
+})

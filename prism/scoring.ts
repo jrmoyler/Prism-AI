@@ -1,26 +1,35 @@
-export const roleMap: Record<string, number[]> = {
-  architect: [1,6,11,16,21,26,31,36,41,46],
-  integrator: [2,7,12,17,22,27,32,37,42,47],
-  designer: [3,8,13,18,23,28,33,38,43,48],
-  educator: [4,9,14,19,24,29,34,39,44,49],
-  consultant: [5,10,15,20,25,30,35,40,45,50]
-}
+import type { PrismQuestion, PrismRole } from './questions'
 
-export function calculateScores(answers: number[]){
+export type RoleScores = Record<PrismRole, number>
 
- const scores:any={
-  architect:0,
-  integrator:0,
-  designer:0,
-  educator:0,
-  consultant:0
- }
+export const emptyScores = (): RoleScores => ({
+  architect: 0,
+  integrator: 0,
+  designer: 0,
+  educator: 0,
+  consultant: 0,
+})
 
- Object.entries(roleMap).forEach(([role,qs])=>{
-   qs.forEach((q:number)=>{
-     scores[role]+=answers[q-1]||0
-   })
- })
+export function calculateWeightedScores(answers: number[], questions: PrismQuestion[]) {
+  const rawScores = emptyScores()
 
- return scores
+  questions.forEach((question, index) => {
+    const answer = Math.max(1, Math.min(5, answers[index] ?? 3))
+    rawScores[question.role] += answer * question.weight
+  })
+
+  const maxScore = Math.max(...Object.values(rawScores), 1)
+  const normalizedScores = Object.entries(rawScores).reduce((acc, [role, score]) => {
+    acc[role as PrismRole] = Number(((score / maxScore) * 100).toFixed(2))
+    return acc
+  }, emptyScores())
+
+  const sorted = Object.entries(normalizedScores).sort((a, b) => b[1] - a[1]) as [PrismRole, number][]
+
+  return {
+    rawScores,
+    normalizedScores,
+    primaryRole: sorted[0]?.[0] ?? 'architect',
+    secondaryRole: sorted[1]?.[0] ?? 'integrator',
+  }
 }

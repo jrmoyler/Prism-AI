@@ -1,16 +1,19 @@
 "use client"
 
-import React from "react"
-import { RadarChart as RC, Radar, PolarGrid, PolarAngleAxis } from "recharts"
+import { PolarAngleAxis, PolarGrid, Radar, RadarChart as RechartRadar, ResponsiveContainer } from 'recharts'
 
-type Item = { role:string, score:number }
+type Item = { role: string; score: number }
 
-export default function RadarChart({data}:{data:Item[]}){
- return (
-  <RC width={500} height={400} data={data}>
-    <PolarGrid/>
-    <PolarAngleAxis dataKey="role"/>
-    <Radar dataKey="score"/>
-  </RC>
- )
+export default function RadarChart({ data }: { data: Item[] }) {
+  return (
+    <div className="h-80 w-full">
+      <ResponsiveContainer>
+        <RechartRadar data={data}>
+          <PolarGrid />
+          <PolarAngleAxis dataKey="role" />
+          <Radar dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.5} />
+        </RechartRadar>
+      </ResponsiveContainer>
+    </div>
+  )
 }
