@@ -1,3 +1,7 @@
+import { redirect } from 'next/navigation'
+
+export default function AdminPage() {
+  redirect('/dashboard')
 import { getCandidates } from '../../lib/supabase'
 
 export default async function AdminDashboardPage() {
