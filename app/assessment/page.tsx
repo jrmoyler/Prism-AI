@@ -1,18 +1,67 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { questions } from '../../prism/questions'
+import { questions, QUESTION_COUNT } from '../../prism/questions'
+
+// ── Storage ───────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'prism-assessment-v1'
 
-const responseLabels: Record<number, { short: string; long: string }> = {
-  1: { short: 'Strongly\nDisagree', long: 'Strongly Disagree' },
-  2: { short: 'Disagree',           long: 'Disagree' },
-  3: { short: 'Neutral',            long: 'Neutral' },
-  4: { short: 'Agree',              long: 'Agree' },
-  5: { short: 'Strongly\nAgree',    long: 'Strongly Agree' },
+type AssessmentState = {
+  currentQuestion: number
+  answers: number[]
+  completed: boolean
 }
+
+function defaultState(): AssessmentState {
+  return {
+    currentQuestion: 0,
+    answers: Array<number>(QUESTION_COUNT).fill(3),
+    completed: false,
+  }
+}
+
+function loadState(): AssessmentState {
+  if (typeof window === 'undefined') return defaultState()
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return defaultState()
+    const parsed = JSON.parse(raw) as Partial<AssessmentState>
+
+    const answers = Array.isArray(parsed.answers) ? parsed.answers : []
+
+    // Guard against wrong-length arrays (e.g. from an old question set)
+    if (answers.length !== QUESTION_COUNT) return defaultState()
+
+    // Clamp each answer to the valid [1,5] range
+    const safeAnswers = answers.map(v => {
+      const n = Number(v)
+      return Number.isFinite(n) ? Math.max(1, Math.min(5, Math.round(n))) : 3
+    })
+
+    return {
+      currentQuestion: Math.max(
+        0,
+        Math.min(QUESTION_COUNT - 1, Number(parsed.currentQuestion) || 0),
+      ),
+      answers: safeAnswers,
+      completed: Boolean(parsed.completed),
+    }
+  } catch {
+    return defaultState()
+  }
+}
+
+function saveState(state: AssessmentState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Storage quota exceeded or private browsing — continue without persistence
+  }
+}
+
+// ── Style maps ────────────────────────────────────────────────────────────────
 
 const roleColors: Record<string, string> = {
   architect:  'rgba(99,102,241,0.15)',
@@ -35,7 +84,6 @@ const roleBorderColors: Record<string, string> = {
   educator:   'rgba(52,211,153,0.3)',
   consultant: 'rgba(251,191,36,0.3)',
 }
-
 const roleLabels: Record<string, string> = {
   architect:  'Architect',
   integrator: 'Integrator',
@@ -44,67 +92,169 @@ const roleLabels: Record<string, string> = {
   consultant: 'Consultant',
 }
 
+const responseLabels: Record<number, { short: string; long: string }> = {
+  1: { short: 'Strongly\nDisagree', long: 'Strongly Disagree' },
+  2: { short: 'Disagree',           long: 'Disagree' },
+  3: { short: 'Neutral',            long: 'Neutral' },
+  4: { short: 'Agree',              long: 'Agree' },
+  5: { short: 'Strongly\nAgree',    long: 'Strongly Agree' },
+}
+
+// ── Memoized response button ──────────────────────────────────────────────────
+
+const ResponseButton = memo(function ResponseButton({
+  val,
+  isSelected,
+  roleColor,
+  roleText,
+  roleBorder,
+  onSelect,
+}: {
+  val: number
+  isSelected: boolean
+  roleColor: string
+  roleText: string
+  roleBorder: string
+  onSelect: (v: number) => void
+}) {
+  return (
+    <motion.button
+      onClick={() => onSelect(val)}
+      whileHover={{ scale: 1.04, y: -1 }}
+      whileTap={{ scale: 0.96 }}
+      className="relative flex flex-col items-center gap-2 rounded-xl p-3 text-xs font-medium transition-all duration-200 select-none"
+      style={{
+        background: isSelected
+          ? `linear-gradient(135deg, ${roleColor.replace('0.15)', '0.3)')}, ${roleColor.replace('0.15)', '0.2)')})`
+          : 'rgba(255,255,255,0.03)',
+        border: isSelected
+          ? `1px solid ${roleBorder}`
+          : '1px solid rgba(255,255,255,0.07)',
+        color: isSelected ? roleText : '#64748b',
+        boxShadow: isSelected
+          ? `0 0 0 1px ${roleBorder}, 0 4px 12px rgba(0,0,0,0.2)`
+          : 'none',
+      }}
+    >
+      <span
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold"
+        style={{
+          background: isSelected ? roleColor : 'rgba(255,255,255,0.05)',
+          color: isSelected ? roleText : 'rgba(255,255,255,0.3)',
+        }}
+      >
+        {val}
+      </span>
+      <span
+        className="text-center leading-tight whitespace-pre-line hidden sm:block"
+        style={{ fontSize: '10px' }}
+      >
+        {responseLabels[val].short}
+      </span>
+    </motion.button>
+  )
+})
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function AssessmentPage() {
-  const [answers, setAnswers] = useState<number[]>(Array(questions.length).fill(3))
-  const [index,   setIndex]   = useState(0)
-  const [dir,     setDir]     = useState(1)
-  const [submitting, setSubmitting] = useState(false)
+  const [state,       setState]      = useState<AssessmentState>(defaultState)
+  const [dir,         setDir]        = useState(1)
+  const [submitting,  setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [hydrated,    setHydrated]   = useState(false)
 
-  const current = questions[index]
-
+  // Load persisted state after hydration (avoids SSR mismatch)
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (!saved) return
-    try {
-      const parsed = JSON.parse(saved) as { answers: number[]; index: number }
-      if (parsed.answers?.length === questions.length) {
-        setAnswers(parsed.answers)
-        setIndex(parsed.index ?? 0)
-      }
-    } catch { /* noop */ }
+    const loaded = loadState()
+    // If the previous session was already completed, wipe it so the user retakes
+    if (loaded.completed) {
+      const fresh = defaultState()
+      setState(fresh)
+      saveState(fresh)
+    } else {
+      setState(loaded)
+    }
+    setHydrated(true)
   }, [])
 
+  // Persist every state change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ answers, index }))
-  }, [answers, index])
+    if (hydrated) saveState(state)
+  }, [state, hydrated])
 
-  const progress = useMemo(() => ((index + 1) / questions.length) * 100, [index])
+  const { currentQuestion: index, answers } = state
+  const current = questions[index]
+
+  const progress = useMemo(
+    () => ((index + 1) / QUESTION_COUNT) * 100,
+    [index],
+  )
 
   const handleAnswer = useCallback((value: number) => {
-    const next = [...answers]
-    next[index] = value
-    setAnswers(next)
-  }, [answers, index])
+    setState(prev => {
+      const next = [...prev.answers]
+      next[prev.currentQuestion] = value
+      return { ...prev, answers: next }
+    })
+  }, [])
 
   const goNext = useCallback(() => {
     setDir(1)
-    setIndex(v => Math.min(questions.length - 1, v + 1))
+    setState(prev => ({
+      ...prev,
+      currentQuestion: Math.min(QUESTION_COUNT - 1, prev.currentQuestion + 1),
+    }))
   }, [])
 
   const goPrev = useCallback(() => {
     setDir(-1)
-    setIndex(v => Math.max(0, v - 1))
+    setState(prev => ({
+      ...prev,
+      currentQuestion: Math.max(0, prev.currentQuestion - 1),
+    }))
   }, [])
 
   const submit = async () => {
     setSubmitting(true)
-    const res = await fetch('/api/score', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ answers }),
-    })
-    const data = await res.json()
-    localStorage.setItem('prism-results-v1', JSON.stringify(data))
-    window.location.href = '/results'
+    setSubmitError(null)
+    try {
+      const res = await fetch('/api/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(
+          (err as { error?: string }).error ?? `Score API returned ${res.status}`,
+        )
+      }
+
+      const data = await res.json()
+      localStorage.setItem('prism-results-v1', JSON.stringify(data))
+
+      // Mark as completed before redirecting
+      setState(prev => ({ ...prev, completed: true }))
+
+      window.location.href = '/results'
+    } catch (err) {
+      console.error('[assessment] submit error:', err)
+      setSubmitError(
+        err instanceof Error ? err.message : 'Submission failed. Please try again.',
+      )
+      setSubmitting(false)
+    }
   }
 
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (['1','2','3','4','5'].includes(e.key)) {
+      if (['1', '2', '3', '4', '5'].includes(e.key)) {
         handleAnswer(Number(e.key))
       } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
-        if (index < questions.length - 1) goNext()
+        if (index < QUESTION_COUNT - 1) goNext()
       } else if (e.key === 'ArrowLeft') {
         if (index > 0) goPrev()
       }
@@ -113,10 +263,13 @@ export default function AssessmentPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [handleAnswer, goNext, goPrev, index])
 
-  const roleColor  = roleColors[current.role]     ?? 'rgba(99,102,241,0.15)'
-  const roleText   = roleTextColors[current.role]  ?? '#818cf8'
+  const roleColor  = roleColors[current.role]      ?? 'rgba(99,102,241,0.15)'
+  const roleText   = roleTextColors[current.role]   ?? '#818cf8'
   const roleBorder = roleBorderColors[current.role] ?? 'rgba(99,102,241,0.3)'
   const selectedAnswer = answers[index]
+
+  // Suppress SSR / hydration flash
+  if (!hydrated) return null
 
   return (
     <main className="min-h-screen flex flex-col" style={{ background: '#070a12' }}>
@@ -144,7 +297,7 @@ export default function AssessmentPage() {
               <p className="text-sm text-slate-500 mt-0.5">
                 Question <span className="text-slate-300 font-medium">{index + 1}</span>
                 {' '}of{' '}
-                <span className="text-slate-300 font-medium">{questions.length}</span>
+                <span className="text-slate-300 font-medium">{QUESTION_COUNT}</span>
               </p>
             </div>
 
@@ -186,47 +339,17 @@ export default function AssessmentPage() {
 
                 {/* Response buttons */}
                 <div className="grid grid-cols-5 gap-2">
-                  {[1, 2, 3, 4, 5].map((val) => {
-                    const isSelected = selectedAnswer === val
-                    return (
-                      <motion.button
-                        key={val}
-                        onClick={() => handleAnswer(val)}
-                        whileHover={{ scale: 1.04, y: -1 }}
-                        whileTap={{ scale: 0.96 }}
-                        className="relative flex flex-col items-center gap-2 rounded-xl p-3 text-xs font-medium transition-all duration-200 select-none"
-                        style={{
-                          background: isSelected
-                            ? `linear-gradient(135deg, ${roleColor.replace('0.15)', '0.3)')}, ${roleColor.replace('0.15)', '0.2)')})`
-                            : 'rgba(255,255,255,0.03)',
-                          border: isSelected
-                            ? `1px solid ${roleBorder}`
-                            : '1px solid rgba(255,255,255,0.07)',
-                          color: isSelected ? roleText : '#64748b',
-                          boxShadow: isSelected
-                            ? `0 0 0 1px ${roleBorder}, 0 4px 12px rgba(0,0,0,0.2)`
-                            : 'none',
-                        }}
-                      >
-                        {/* Number indicator */}
-                        <span
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold"
-                          style={{
-                            background: isSelected ? roleColor : 'rgba(255,255,255,0.05)',
-                            color: isSelected ? roleText : 'rgba(255,255,255,0.3)',
-                          }}
-                        >
-                          {val}
-                        </span>
-                        <span
-                          className="text-center leading-tight whitespace-pre-line hidden sm:block"
-                          style={{ fontSize: '10px' }}
-                        >
-                          {responseLabels[val].short}
-                        </span>
-                      </motion.button>
-                    )
-                  })}
+                  {[1, 2, 3, 4, 5].map((val) => (
+                    <ResponseButton
+                      key={val}
+                      val={val}
+                      isSelected={selectedAnswer === val}
+                      roleColor={roleColor}
+                      roleText={roleText}
+                      roleBorder={roleBorder}
+                      onSelect={handleAnswer}
+                    />
+                  ))}
                 </div>
 
                 {/* Response label */}
@@ -244,6 +367,20 @@ export default function AssessmentPage() {
               </div>
             </motion.div>
           </AnimatePresence>
+
+          {/* Submit error banner */}
+          {submitError && (
+            <div
+              className="rounded-lg px-4 py-3 text-sm"
+              style={{
+                background: 'rgba(248,113,113,0.1)',
+                border: '1px solid rgba(248,113,113,0.3)',
+                color: '#f87171',
+              }}
+            >
+              {submitError}
+            </div>
+          )}
 
           {/* Navigation */}
           <div className="flex items-center justify-between gap-4">
@@ -266,38 +403,14 @@ export default function AssessmentPage() {
               Previous
             </motion.button>
 
-            {/* Dot progress */}
-            <div className="flex items-center gap-1 overflow-hidden">
-              {Array.from({ length: Math.min(questions.length, 50) }).map((_, i) => {
-                const answered = answers[i] !== 3 || i < index
-                const isCurrent = i === index
-                if (questions.length <= 20) {
-                  return (
-                    <div
-                      key={i}
-                      className="rounded-full transition-all duration-200"
-                      style={{
-                        width: isCurrent ? '16px' : '4px',
-                        height: '4px',
-                        background: isCurrent
-                          ? roleText
-                          : answered
-                          ? `${roleText}60`
-                          : 'rgba(255,255,255,0.1)',
-                      }}
-                    />
-                  )
-                }
-                return null
-              })}
-              {questions.length > 20 && (
-                <span className="text-xs text-slate-600 font-mono">
-                  {Math.round(progress)}%
-                </span>
-              )}
+            {/* Progress % indicator */}
+            <div className="flex items-center">
+              <span className="text-xs text-slate-600 font-mono">
+                {Math.round(progress)}%
+              </span>
             </div>
 
-            {index < questions.length - 1 ? (
+            {index < QUESTION_COUNT - 1 ? (
               <motion.button
                 onClick={goNext}
                 whileHover={{ x: 2 }}
@@ -328,6 +441,7 @@ export default function AssessmentPage() {
                     ? 'none'
                     : '0 0 0 1px rgba(16,185,129,0.4), 0 2px 8px rgba(16,185,129,0.2)',
                   opacity: submitting ? 0.7 : 1,
+                  cursor: submitting ? 'not-allowed' : 'pointer',
                 }}
               >
                 {submitting ? (
@@ -351,7 +465,8 @@ export default function AssessmentPage() {
 
           {/* Keyboard hint */}
           <p className="text-center text-xs text-slate-700">
-            Press <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>1</kbd>–
+            Press{' '}
+            <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>1</kbd>–
             <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>5</kbd> to answer &nbsp;·&nbsp;
             <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>←</kbd>&nbsp;
             <kbd className="rounded px-1 py-0.5 text-[10px]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>→</kbd> to navigate
