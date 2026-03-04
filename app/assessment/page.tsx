@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { questions } from '../../prism/questions'
+import { questions } from "../../prism/questions"
+import { useState } from "react"
+import QuestionCard from "../../components/QuestionCard"
 
 const STORAGE_KEY = 'prism-assessment-v1'
 
