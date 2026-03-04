@@ -1,35 +1,51 @@
 "use client"
 
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis } from "recharts"
+import { useEffect, useState } from 'react'
+import RadarChart from '../../components/RadarChart'
 
-export default function Results(){
+type Scores = {
+  architect: number
+  integrator: number
+  designer: number
+  educator: number
+  consultant: number
+}
 
- const data=JSON.parse(localStorage.getItem("prism")||"{}")
+const emptyScores: Scores = {
+  architect: 0,
+  integrator: 0,
+  designer: 0,
+  educator: 0,
+  consultant: 0,
+}
 
- const chartData=[
-  {role:"Architect",score:data.architect||0},
-  {role:"Integrator",score:data.integrator||0},
-  {role:"Designer",score:data.designer||0},
-  {role:"Educator",score:data.educator||0},
-  {role:"Consultant",score:data.consultant||0}
- ]
+export default function Results() {
+  const [scores, setScores] = useState<Scores>(emptyScores)
 
- return(
+  useEffect(() => {
+    const raw = localStorage.getItem('prism')
+    if (!raw) return
 
-  <div className="p-10">
+    try {
+      const parsed = JSON.parse(raw)
+      setScores({ ...emptyScores, ...parsed })
+    } catch {
+      setScores(emptyScores)
+    }
+  }, [])
 
-   <h1 className="text-3xl mb-6">
-    PRISM Profile
-   </h1>
+  const chartData = [
+    { role: 'Architect', score: scores.architect },
+    { role: 'Integrator', score: scores.integrator },
+    { role: 'Designer', score: scores.designer },
+    { role: 'Educator', score: scores.educator },
+    { role: 'Consultant', score: scores.consultant },
+  ]
 
-   <RadarChart width={500} height={400} data={chartData}>
-    <PolarGrid/>
-    <PolarAngleAxis dataKey="role"/>
-    <Radar dataKey="score"/>
-   </RadarChart>
-
-  </div>
-
- )
-
+  return (
+    <div className="p-10">
+      <h1 className="mb-6 text-3xl">PRISM Profile</h1>
+      <RadarChart data={chartData} />
+    </div>
+  )
 }

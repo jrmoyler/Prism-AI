@@ -1,8 +1,8 @@
 "use client"
 
-import { questions } from "@/prism/questions"
+import { questions } from "../../prism/questions"
 import { useState } from "react"
-import QuestionCard from "@/components/QuestionCard"
+import QuestionCard from "../../components/QuestionCard"
 
 export default function Assessment(){
 
