@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server'
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export async function POST(req: Request) {
   const form = await req.formData()
-  const email = String(form.get('email') ?? '')
+  const rawEmail = String(form.get('email') ?? '')
+  const email = rawEmail.trim().toLowerCase().slice(0, 254)
+
+  if (!EMAIL_REGEX.test(email)) {
+    return NextResponse.redirect(new URL('/login?error=invalid_email', req.url))
+  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/auth/callback`
 
-  if (url && anon && email) {
+  if (url && anon) {
     await fetch(`${url}/auth/v1/otp`, {
       method: 'POST',
       headers: {

@@ -1,10 +1,9 @@
-export { POST } from '../prism-report/route'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   const body = (await req.json()) as { name?: string; background?: string }
-  const name = body.name?.trim() || 'Candidate'
-  const background = body.background?.trim() || 'generalist profile'
+  const name = String(body.name ?? '').trim().slice(0, 200) || 'Candidate'
+  const background = String(body.background ?? '').trim().slice(0, 2000) || 'generalist profile'
 
   const summary = `${name} demonstrates strong potential based on a ${background} background. Focus on business impact, communication, and iterative delivery to accelerate progression.`
 
