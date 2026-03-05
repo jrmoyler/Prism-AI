@@ -153,6 +153,31 @@ export async function POST(req: Request) {
     jobRoles: safeList(aiReport?.jobRoles, fallbackJobRoles),
     skillRoadmap: safeList(aiReport?.skillRoadmap, fallbackRoadmap),
     learningResources: safeList(aiReport?.learningResources, fallbackResources),
+
+  const report: PrismReport = {
+    summary:
+      aiReport?.summary ??
+      `Your strongest alignment is ${body.primaryRole}, with meaningful overlap in ${body.secondaryRole}. Build depth in your primary role while developing cross-functional strengths for long-term career leverage.`,
+    strengths: aiReport?.strengths?.slice(0, 3) ?? [
+      'Structured problem solving and strategic thinking',
+      'Cross-functional collaboration and communication',
+      'Execution discipline with measurable outcomes',
+    ],
+    jobRoles: aiReport?.jobRoles?.slice(0, 3) ?? [
+      'AI Product Manager',
+      'Solutions Architect',
+      'Technical Program Manager',
+    ],
+    skillRoadmap: aiReport?.skillRoadmap?.slice(0, 3) ?? [
+      'Year 1: Strengthen AI and analytics fundamentals',
+      'Year 2: Ship high-impact cross-functional initiatives',
+      'Year 3: Lead strategy and mentor emerging talent',
+    ],
+    learningResources: aiReport?.learningResources?.slice(0, 3) ?? [
+      'DeepLearning.AI practical AI courses',
+      'Reforge strategy and product programs',
+      'Hands-on portfolio projects with measurable outcomes',
+    ],
   }
 
   let saved = false
@@ -162,11 +187,20 @@ export async function POST(req: Request) {
     if (userId) {
       await createReport(userId, report)
       saved = true
+      await createReport(userId, report)
+      saved = true
+  const userId = await getAuthenticatedUserId(req)
+  if (userId) {
+    try {
+      await createReport(userId, report)
+    } catch (error) {
+      console.error('[prism-report] persistence failed', error)
     }
   } catch (error) {
     console.error('[prism-report] persistence failed (continuing with unsaved report):', error)
   }
 
   return NextResponse.json({ ...report, saved })
+  return NextResponse.json(report)
 }
 
