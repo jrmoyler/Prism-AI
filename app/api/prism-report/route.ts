@@ -3,14 +3,7 @@ import { createReport } from '../../../lib/supabase'
 import type { PrismReport } from '../../../lib/types'
 import type { PrismRole } from '../../../prism/questions'
 
-const VALID_ROLES: PrismRole[] = [
-  'architect',
-  'integrator',
-  'designer',
-  'educator',
-  'consultant',
-]
-
+const VALID_ROLES: PrismRole[] = ['architect', 'integrator', 'designer', 'educator', 'consultant']
 const VALID_ROLES_SET = new Set<string>(VALID_ROLES)
 
 function isValidRole(role: unknown): role is PrismRole {
@@ -20,19 +13,46 @@ function isValidRole(role: unknown): role is PrismRole {
 function isValidScores(scores: unknown): scores is Record<string, number> {
   if (!scores || typeof scores !== 'object' || Array.isArray(scores)) return false
   return Object.values(scores as Record<string, unknown>).every(
-    v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100,
+    (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100,
   )
 }
 
-// ── LLM report generation ─────────────────────────────────────────────────────
+async function getAuthenticatedUserId(request: Request): Promise<string | null> {
+  const authHeader = request.headers.get('authorization')
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (!token) return null
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+  if (!supabaseUrl || !supabaseAnon) return null
+
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: {
+      apikey: supabaseAnon,
+      Authorization: `Bearer ${token}`,
+    },
+  })
+
+  if (!response.ok) return null
+  const user = (await response.json()) as { id?: string }
+  return user.id ?? null
+}
 
 async function generateWithLLM(input: {
   primaryRole: PrismRole
   secondaryRole: PrismRole
   scores: Record<string, number>
-}): Promise<string | null> {
+}): Promise<Partial<PrismReport> | null> {
   const key = process.env.OPENAI_API_KEY
   if (!key) return null
+
+  const prompt = [
+    'You are a career strategy assistant.',
+    'Return strict JSON with keys: summary, strengths, jobRoles, skillRoadmap, learningResources.',
+    'Each list should contain exactly 3 items.',
+    `Primary role: ${input.primaryRole}. Secondary role: ${input.secondaryRole}.`,
+    `Scores: ${JSON.stringify(input.scores)}.`,
+  ].join(' ')
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -43,51 +63,28 @@ async function generateWithLLM(input: {
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'user',
-            content:
-              `Generate a 2-3 sentence career narrative for a PRISM assessment result. ` +
-              `Primary role: ${input.primaryRole}. Secondary role: ${input.secondaryRole}. ` +
-              `Normalized scores: ${JSON.stringify(input.scores)}. ` +
-              `Return only the narrative text, no JSON.`,
-          },
-        ],
-        max_tokens: 250,
-        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 650,
       }),
     })
 
-    if (!response.ok) {
-      console.error('[prism-report] OpenAI error:', response.status)
-      return null
-    }
+    if (!response.ok) return null
 
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[]
-    }
-    return data.choices?.[0]?.message?.content?.trim() ?? null
-  } catch (err) {
-    console.error('[prism-report] LLM generation failed:', err)
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> }
+    const content = data.choices?.[0]?.message?.content
+    if (!content) return null
+
+    const parsed = JSON.parse(content) as Partial<PrismReport>
+    return parsed
+  } catch (error) {
+    console.error('[prism-report] generation failed', error)
     return null
   }
 }
 
-// ── POST /api/prism-report ────────────────────────────────────────────────────
-//
-// Body: { primaryRole, secondaryRole, scores, userId? }
-//   primaryRole   — required, must be a valid PrismRole
-//   secondaryRole — required, must be a valid PrismRole
-//   scores        — required, Record<string, number> with values 0-100
-//   userId        — optional; report stored in Supabase if provided
-
 export async function POST(req: Request) {
-  let body: {
-    userId?: unknown
-    primaryRole?: unknown
-    secondaryRole?: unknown
-    scores?: unknown
-  }
+  let body: { primaryRole?: unknown; secondaryRole?: unknown; scores?: unknown }
 
   try {
     body = (await req.json()) as typeof body
@@ -95,78 +92,54 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  // ── Validate required fields ──────────────────────────────────────────────
-
-  if (!isValidRole(body.primaryRole)) {
-    return NextResponse.json(
-      { error: `primaryRole must be one of: ${[...VALID_ROLES].join(', ')}` },
-      { status: 400 },
-    )
-  }
-
-  if (!isValidRole(body.secondaryRole)) {
-    return NextResponse.json(
-      { error: `secondaryRole must be one of: ${[...VALID_ROLES].join(', ')}` },
-      { status: 400 },
-    )
+  if (!isValidRole(body.primaryRole) || !isValidRole(body.secondaryRole)) {
+    return NextResponse.json({ error: 'Invalid role payload' }, { status: 400 })
   }
 
   if (!isValidScores(body.scores)) {
-    return NextResponse.json(
-      { error: 'scores must be an object with numeric values between 0 and 100' },
-      { status: 400 },
-    )
+    return NextResponse.json({ error: 'scores must contain numeric values between 0 and 100' }, { status: 400 })
   }
 
-  const primaryRole   = body.primaryRole
-  const secondaryRole = body.secondaryRole
-  const scores        = body.scores as Record<string, number>
-
-  // ── Generate narrative ────────────────────────────────────────────────────
-
-  const narrative = await generateWithLLM({ primaryRole, secondaryRole, scores })
+  const aiReport = await generateWithLLM({
+    primaryRole: body.primaryRole,
+    secondaryRole: body.secondaryRole,
+    scores: body.scores,
+  })
 
   const report: PrismReport = {
     summary:
-      narrative ??
-      `You show strongest alignment with ${primaryRole} and secondary momentum in ${secondaryRole}. ` +
-      `Focus on deepening your core role capabilities while leveraging cross-functional strengths.`,
-    strengths: [
-      'Systems thinking and structured problem solving',
-      'Cross-functional communication and collaboration',
-      'Execution discipline and initiative',
+      aiReport?.summary ??
+      `Your strongest alignment is ${body.primaryRole}, with meaningful overlap in ${body.secondaryRole}. Build depth in your primary role while developing cross-functional strengths for long-term career leverage.`,
+    strengths: aiReport?.strengths?.slice(0, 3) ?? [
+      'Structured problem solving and strategic thinking',
+      'Cross-functional collaboration and communication',
+      'Execution discipline with measurable outcomes',
     ],
-    jobRoles: [
+    jobRoles: aiReport?.jobRoles?.slice(0, 3) ?? [
       'AI Product Manager',
       'Solutions Architect',
-      'Technical Program Lead',
+      'Technical Program Manager',
     ],
-    skillRoadmap: [
-      'Deepen SQL and data analytics fundamentals',
-      'Practice executive-level communication and storytelling',
-      'Ship two portfolio case studies in your primary role',
+    skillRoadmap: aiReport?.skillRoadmap?.slice(0, 3) ?? [
+      'Year 1: Strengthen AI and analytics fundamentals',
+      'Year 2: Ship high-impact cross-functional initiatives',
+      'Year 3: Lead strategy and mentor emerging talent',
     ],
-    learningResources: [
-      'DeepLearning.AI short courses for AI fundamentals',
-      'Reforge product strategy growth modules',
-      'System design interview preparation resources',
+    learningResources: aiReport?.learningResources?.slice(0, 3) ?? [
+      'DeepLearning.AI practical AI courses',
+      'Reforge strategy and product programs',
+      'Hands-on portfolio projects with measurable outcomes',
     ],
   }
 
-  // ── Persist report (non-fatal if it fails) ────────────────────────────────
-
-  const userId =
-    typeof body.userId === 'string' && body.userId.trim().length > 0
-      ? body.userId.trim()
-      : null
-
+  const userId = await getAuthenticatedUserId(req)
   if (userId) {
     try {
       await createReport(userId, report)
-    } catch (err) {
-      console.error('[prism-report] Failed to persist report:', err)
+    } catch (error) {
+      console.error('[prism-report] persistence failed', error)
     }
   }
 
-  return NextResponse.json(report, { status: 200 })
+  return NextResponse.json(report)
 }
