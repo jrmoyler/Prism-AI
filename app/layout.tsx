@@ -1,7 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import Navbar from '../components/Navbar'
-import { AuthProvider } from '../lib/auth-context'
+import { AuthProvider } from '../providers/AuthProvider'
 
 export const metadata: Metadata = {
   title: 'PRISM AI — Career Intelligence Platform',
