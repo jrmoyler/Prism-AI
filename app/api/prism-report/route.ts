@@ -132,6 +132,13 @@ export async function POST(req: Request) {
     ],
   }
 
+  let saved = false
+
+  try {
+    const userId = await getAuthenticatedUserId(req)
+    if (userId) {
+      await createReport(userId, report)
+      saved = true
   const userId = await getAuthenticatedUserId(req)
   if (userId) {
     try {
@@ -139,7 +146,11 @@ export async function POST(req: Request) {
     } catch (error) {
       console.error('[prism-report] persistence failed', error)
     }
+  } catch (error) {
+    console.error('[prism-report] persistence failed (continuing with unsaved report):', error)
   }
 
+  return NextResponse.json({ ...report, saved })
   return NextResponse.json(report)
 }
+
