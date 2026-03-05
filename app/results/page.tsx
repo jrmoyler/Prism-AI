@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
-import RadarChart from '../../components/RadarChart'
+import dynamic from 'next/dynamic'
 import ScoreBar from '../../components/ui/ScoreBar'
 import type { PrismRole } from '../../prism/questions'
 
@@ -71,6 +71,11 @@ const stagger = {
   show: { transition: { staggerChildren: 0.1 } },
 }
 
+
+const RadarChart = dynamic(() => import('../../components/RadarChart'), {
+  ssr: false,
+  loading: () => <div className="h-[320px] rounded-xl bg-white/5 animate-pulse" />,
+})
 export default function ResultsPage() {
   const [result, setResult]   = useState<Stored>(defaultData)
   const [loading, setLoading] = useState(false)
