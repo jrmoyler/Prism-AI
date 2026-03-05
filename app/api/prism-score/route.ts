@@ -133,23 +133,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `answers must include exactly ${QUESTION_COUNT} responses with values 1-5` }, { status: 400 })
   }
 
-  const userId = await getAuthenticatedUserId(req)
-  if (!userId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-
-  if (await hasExistingAssessment(userId)) {
-    return NextResponse.json({ error: 'Assessment already submitted for this user' }, { status: 409 })
-  }
-
   const normalizedScores = scoreAssessment(answers)
   const ordered = Object.entries(normalizedScores).sort((a, b) => b[1] - a[1])
 
-  await persistAssessment({ userId, answers, normalizedScores })
+  const userId = await getAuthenticatedUserId(req)
+  let saved = false
+
+  if (userId) {
+    if (await hasExistingAssessment(userId)) {
+      return NextResponse.json({ error: 'Assessment already submitted for this user' }, { status: 409 })
+    }
+
+    try {
+      await persistAssessment({ userId, answers, normalizedScores })
+      saved = true
+    } catch (error) {
+      console.error('[prism-score] persistence failed', error)
+    }
+  }
 
   return NextResponse.json({
     normalizedScores,
     primaryRole: ordered[0]?.[0] ?? 'architect',
     secondaryRole: ordered[1]?.[0] ?? 'integrator',
+    saved,
   })
 }
