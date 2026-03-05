@@ -38,6 +38,21 @@ async function getAuthenticatedUserId(request: Request): Promise<string | null> 
   return user.id ?? null
 }
 
+
+function safeList(value: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(value)) return fallback
+  const normalized = value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim())
+    .slice(0, 3)
+
+  return normalized.length > 0 ? normalized : fallback
+}
+
+function safeSummary(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback
+}
+
 async function generateWithLLM(input: {
   primaryRole: PrismRole
   secondaryRole: PrismRole
@@ -106,6 +121,39 @@ export async function POST(req: Request) {
     scores: body.scores,
   })
 
+  const fallbackSummary = `Your strongest alignment is ${body.primaryRole}, with meaningful overlap in ${body.secondaryRole}. Build depth in your primary role while developing cross-functional strengths for long-term career leverage.`
+
+  const fallbackStrengths = [
+    'Structured problem solving and strategic thinking',
+    'Cross-functional collaboration and communication',
+    'Execution discipline with measurable outcomes',
+  ]
+
+  const fallbackJobRoles = [
+    'AI Product Manager',
+    'Solutions Architect',
+    'Technical Program Manager',
+  ]
+
+  const fallbackRoadmap = [
+    'Year 1: Strengthen AI and analytics fundamentals',
+    'Year 2: Ship high-impact cross-functional initiatives',
+    'Year 3: Lead strategy and mentor emerging talent',
+  ]
+
+  const fallbackResources = [
+    'DeepLearning.AI practical AI courses',
+    'Reforge strategy and product programs',
+    'Hands-on portfolio projects with measurable outcomes',
+  ]
+
+  const report: PrismReport = {
+    summary: safeSummary(aiReport?.summary, fallbackSummary),
+    strengths: safeList(aiReport?.strengths, fallbackStrengths),
+    jobRoles: safeList(aiReport?.jobRoles, fallbackJobRoles),
+    skillRoadmap: safeList(aiReport?.skillRoadmap, fallbackRoadmap),
+    learningResources: safeList(aiReport?.learningResources, fallbackResources),
+
   const report: PrismReport = {
     summary:
       aiReport?.summary ??
@@ -137,6 +185,8 @@ export async function POST(req: Request) {
   try {
     const userId = await getAuthenticatedUserId(req)
     if (userId) {
+      await createReport(userId, report)
+      saved = true
       await createReport(userId, report)
       saved = true
   const userId = await getAuthenticatedUserId(req)
