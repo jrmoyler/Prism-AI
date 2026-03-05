@@ -1,22 +1,29 @@
+import dynamic from 'next/dynamic'
 import { getCandidates } from '../../lib/supabase'
+import CandidateStatusSelect from '../../components/CandidateStatusSelect'
 import type { CandidateStatus } from '../../lib/types'
+
+const DashboardAnalytics = dynamic(() => import('../../components/DashboardAnalytics'), {
+  ssr: false,
+  loading: () => <div className="h-[280px] rounded-2xl bg-white/5 animate-pulse" />,
+})
 
 const statuses: CandidateStatus[] = ['new', 'review', 'interview', 'hired', 'rejected']
 
 const statusConfig: Record<CandidateStatus, { label: string; color: string; bg: string; border: string }> = {
-  new:       { label: 'New',       color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' },
-  review:    { label: 'Review',    color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.2)'  },
-  interview: { label: 'Interview', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.2)'  },
-  hired:     { label: 'Hired',     color: '#34d399', bg: 'rgba(52,211,153,0.1)',  border: 'rgba(52,211,153,0.2)'  },
-  rejected:  { label: 'Rejected',  color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
+  new: { label: 'New', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' },
+  review: { label: 'Review', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)', border: 'rgba(96,165,250,0.2)' },
+  interview: { label: 'Interview', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.2)' },
+  hired: { label: 'Hired', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.2)' },
+  rejected: { label: 'Rejected', color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
 }
 
 const roleConfig: Record<string, { color: string; bg: string; border: string }> = {
-  architect:  { color: '#818cf8', bg: 'rgba(99,102,241,0.1)',  border: 'rgba(99,102,241,0.2)'  },
-  integrator: { color: '#a78bfa', bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.2)'  },
-  designer:   { color: '#f472b6', bg: 'rgba(244,114,182,0.1)',border: 'rgba(244,114,182,0.2)' },
-  educator:   { color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.2)'  },
-  consultant: { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.2)'  },
+  architect: { color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.2)' },
+  integrator: { color: '#a78bfa', bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.2)' },
+  designer: { color: '#f472b6', bg: 'rgba(244,114,182,0.1)', border: 'rgba(244,114,182,0.2)' },
+  educator: { color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.2)' },
+  consultant: { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.2)' },
 }
 
 export default async function DashboardPage({
@@ -24,28 +31,37 @@ export default async function DashboardPage({
 }: {
   searchParams: { status?: CandidateStatus }
 }) {
-  const selected   = searchParams.status
+  const selected = searchParams.status
   const candidates = await getCandidates(selected)
 
   const totalCount = candidates.length
-  const avgScore   = totalCount
+  const avgScore = totalCount
     ? Math.round(candidates.reduce((acc, c) => acc + c.score, 0) / totalCount)
     : 0
   const interviewRate = Math.round(
-    ((candidates.filter(c => c.status === 'interview').length) / Math.max(totalCount, 1)) * 100,
+    (candidates.filter((c) => c.status === 'interview').length / Math.max(totalCount, 1)) * 100,
   )
 
-  const roleDistribution = candidates.reduce((acc, c) => {
-    acc[c.desired_role] = (acc[c.desired_role] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const roleDistribution = Object.entries(
+    candidates.reduce((acc, c) => {
+      acc[c.desired_role] = (acc[c.desired_role] || 0) + 1
+      return acc
+    }, {} as Record<string, number>),
+  ).map(([role, count]) => ({ role, count }))
 
-  const maxRoleCount = Math.max(...Object.values(roleDistribution), 1)
+  const pipelineDistribution = statuses.map((status) => ({
+    status,
+    count: candidates.filter((candidate) => candidate.status === status).length,
+  }))
+
+  const averageScoreByRole = Object.keys(roleConfig).map((role) => {
+    const byRole = candidates.filter((candidate) => candidate.desired_role === role)
+    const score = byRole.length ? Math.round(byRole.reduce((acc, row) => acc + row.score, 0) / byRole.length) : 0
+    return { role, score }
+  })
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-12 space-y-8">
-
-      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
@@ -63,49 +79,29 @@ export default async function DashboardPage({
           }}
         >
           All Candidates
-          <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
         </a>
       </div>
 
-      {/* Metric cards */}
       <div className="grid sm:grid-cols-3 gap-4">
-        <MetricCard
-          title="Total Candidates"
-          value={String(totalCount)}
-          sub="in current view"
-          color="#818cf8"
-        />
-        <MetricCard
-          title="Average Score"
-          value={String(avgScore)}
-          sub="across all roles"
-          color="#34d399"
-        />
-        <MetricCard
-          title="Interview Rate"
-          value={`${interviewRate}%`}
-          sub="pipeline conversion"
-          color="#fbbf24"
-        />
+        <MetricCard title="Total Candidates" value={String(totalCount)} sub="in current view" color="#818cf8" />
+        <MetricCard title="Average Score" value={String(avgScore)} sub="across all roles" color="#34d399" />
+        <MetricCard title="Interview Rate" value={`${interviewRate}%`} sub="pipeline conversion" color="#fbbf24" />
       </div>
 
-      {/* Status filter pills */}
       <div className="flex flex-wrap gap-2">
         <a
           href="/dashboard"
           className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
           style={{
-            background:  !selected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
-            border:      !selected ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.07)',
-            color:       !selected ? '#818cf8' : '#64748b',
+            background: !selected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
+            border: !selected ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.07)',
+            color: !selected ? '#818cf8' : '#64748b',
           }}
         >
           All
         </a>
-        {statuses.map(status => {
-          const cfg    = statusConfig[status]
+        {statuses.map((status) => {
+          const cfg = statusConfig[status]
           const active = selected === status
           return (
             <a
@@ -113,9 +109,9 @@ export default async function DashboardPage({
               href={`/dashboard?status=${status}`}
               className="rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all"
               style={{
-                background: active ? cfg.bg  : 'rgba(255,255,255,0.04)',
-                border:     active ? `1px solid ${cfg.border}` : '1px solid rgba(255,255,255,0.07)',
-                color:      active ? cfg.color : '#64748b',
+                background: active ? cfg.bg : 'rgba(255,255,255,0.04)',
+                border: active ? `1px solid ${cfg.border}` : '1px solid rgba(255,255,255,0.07)',
+                color: active ? cfg.color : '#64748b',
               }}
             >
               {cfg.label}
@@ -124,99 +120,13 @@ export default async function DashboardPage({
         })}
       </div>
 
-      {/* Analytics panels */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <DashboardAnalytics
+        roleDistribution={roleDistribution}
+        pipelineDistribution={pipelineDistribution}
+        averageScoreByRole={averageScoreByRole}
+      />
 
-        {/* Role distribution */}
-        <div
-          className="rounded-2xl p-5 space-y-4"
-          style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
-          <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-            Role Distribution
-          </h2>
-          <ul className="space-y-3">
-            {Object.entries(roleDistribution).map(([role, count]) => {
-              const cfg = roleConfig[role] ?? roleConfig.architect
-              const pct = (count / maxRoleCount) * 100
-              return (
-                <li key={role} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium capitalize"
-                        style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
-                      >
-                        {role}
-                      </span>
-                    </div>
-                    <span className="text-xs font-mono text-slate-500">{count}</span>
-                  </div>
-                  <div className="h-1 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                    <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: cfg.color, opacity: 0.7 }}
-                    />
-                  </div>
-                </li>
-              )
-            })}
-            {Object.keys(roleDistribution).length === 0 && (
-              <li className="text-xs text-slate-600 py-2">No candidates in this view</li>
-            )}
-          </ul>
-        </div>
-
-        {/* Pipeline by status */}
-        <div
-          className="rounded-2xl p-5 space-y-4"
-          style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
-          }}
-        >
-          <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-            Pipeline by Status
-          </h2>
-          <ul className="space-y-3">
-            {statuses.map(status => {
-              const count = candidates.filter(c => c.status === status).length
-              const cfg   = statusConfig[status]
-              const pct   = (count / Math.max(totalCount, 1)) * 100
-              return (
-                <li key={status} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium"
-                      style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
-                    >
-                      {cfg.label}
-                    </span>
-                    <span className="text-xs font-mono text-slate-500">{count}</span>
-                  </div>
-                  <div className="h-1 w-full rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${pct}%`, background: cfg.color, opacity: 0.7 }}
-                    />
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      </div>
-
-      {/* Candidate table */}
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}
-      >
+      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
         <div
           className="px-5 py-4 flex items-center justify-between"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
@@ -230,7 +140,7 @@ export default async function DashboardPage({
         <table className="w-full text-left text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
-              {['Candidate', 'Role', 'Status', 'Score'].map(h => (
+              {['Candidate', 'Role', 'Status', 'Score'].map((h) => (
                 <th key={h} className="px-5 py-3 text-xs font-medium" style={{ color: '#475569' }}>
                   {h}
                 </th>
@@ -239,7 +149,7 @@ export default async function DashboardPage({
           </thead>
           <tbody>
             {candidates.map((candidate, i) => {
-              const roleCfg   = roleConfig[candidate.desired_role]   ?? roleConfig.architect
+              const roleCfg = roleConfig[candidate.desired_role] ?? roleConfig.architect
               const statusCfg = statusConfig[candidate.status as CandidateStatus] ?? statusConfig.new
               const scoreColor = candidate.score >= 75 ? '#34d399' : candidate.score >= 50 ? '#fbbf24' : '#f87171'
 
@@ -250,23 +160,10 @@ export default async function DashboardPage({
                   style={{
                     borderBottom: i < candidates.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div
-                        className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
-                        style={{ background: roleCfg.bg, color: roleCfg.color }}
-                      >
-                        {candidate.full_name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-medium text-slate-100 text-sm">{candidate.full_name}</div>
-                        <div className="text-xs text-slate-600">{candidate.email}</div>
-                      </div>
-                    </div>
+                    <div className="font-medium text-slate-100 text-sm">{candidate.full_name}</div>
+                    <div className="text-xs text-slate-600">{candidate.email}</div>
                   </td>
                   <td className="px-5 py-4">
                     <span
@@ -281,40 +178,31 @@ export default async function DashboardPage({
                     </span>
                   </td>
                   <td className="px-5 py-4">
-                    <span
-                      className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium"
+                    <CandidateStatusSelect
+                      candidateId={candidate.id}
+                      status={candidate.status}
+                      labelMap={{
+                        new: statusConfig.new.label,
+                        review: statusConfig.review.label,
+                        interview: statusConfig.interview.label,
+                        hired: statusConfig.hired.label,
+                        rejected: statusConfig.rejected.label,
+                      }}
                       style={{
                         background: statusCfg.bg,
                         color: statusCfg.color,
                         border: `1px solid ${statusCfg.border}`,
                       }}
-                    >
-                      {statusCfg.label}
-                    </span>
+                    />
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1 w-16 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${candidate.score}%`, background: scoreColor, opacity: 0.8 }}
-                        />
-                      </div>
-                      <span className="text-xs font-mono" style={{ color: scoreColor }}>
-                        {candidate.score}
-                      </span>
-                    </div>
+                    <span className="text-xs font-mono" style={{ color: scoreColor }}>
+                      {candidate.score}
+                    </span>
                   </td>
                 </tr>
               )
             })}
-            {candidates.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-600">
-                  No candidates found
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -331,9 +219,15 @@ function MetricCard({ title, value, sub, color }: { title: string; value: string
         border: '1px solid rgba(255,255,255,0.06)',
       }}
     >
-      <p className="text-xs font-medium uppercase tracking-widest" style={{ color: '#64748b' }}>{title}</p>
-      <p className="text-4xl font-bold" style={{ color }}>{value}</p>
-      <p className="text-xs" style={{ color: '#475569' }}>{sub}</p>
+      <p className="text-xs font-medium uppercase tracking-widest" style={{ color: '#64748b' }}>
+        {title}
+      </p>
+      <p className="text-4xl font-bold" style={{ color }}>
+        {value}
+      </p>
+      <p className="text-xs" style={{ color: '#475569' }}>
+        {sub}
+      </p>
     </div>
   )
 }
