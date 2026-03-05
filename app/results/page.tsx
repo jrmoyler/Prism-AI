@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
-import RadarChart from '../../components/RadarChart'
+import dynamic from 'next/dynamic'
 import ScoreBar from '../../components/ui/ScoreBar'
 import type { PrismRole } from '../../prism/questions'
+import { getSupabaseBrowserClient } from '../../lib/supabase-client'
 
 type Stored = {
   normalizedScores: Record<PrismRole, number>
@@ -71,6 +72,11 @@ const stagger = {
   show: { transition: { staggerChildren: 0.1 } },
 }
 
+
+const RadarChart = dynamic(() => import('../../components/RadarChart'), {
+  ssr: false,
+  loading: () => <div className="h-[320px] rounded-xl bg-white/5 animate-pulse" />,
+})
 export default function ResultsPage() {
   const [result, setResult]   = useState<Stored>(defaultData)
   const [loading, setLoading] = useState(false)
@@ -88,18 +94,37 @@ export default function ResultsPage() {
 
   const generateReport = async () => {
     setLoading(true)
-    const response = await fetch('/api/prism-report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        primaryRole:   result.primaryRole,
-        secondaryRole: result.secondaryRole,
-        scores:        result.normalizedScores,
-      }),
-    })
-    const report = await response.json()
-    localStorage.setItem('prism-report-v1', JSON.stringify(report))
-    window.location.href = '/reports'
+
+    try {
+      const supabase = getSupabaseBrowserClient()
+      const session = supabase ? (await supabase.auth.getSession()).data.session : null
+
+      const response = await fetch('/api/prism-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          primaryRole: result.primaryRole,
+          secondaryRole: result.secondaryRole,
+          scores: result.normalizedScores,
+        }),
+      })
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        throw new Error((payload as { error?: string }).error ?? 'Failed to generate report')
+      }
+
+      const report = await response.json()
+      localStorage.setItem('prism-report-v1', JSON.stringify(report))
+      window.location.href = '/reports'
+    } catch (error) {
+      console.error('[results] report generation failed', error)
+      setLoading(false)
+      alert('We could not generate your report right now. Please try again.')
+    }
   }
 
   const primary   = roleConfig[result.primaryRole]   ?? roleConfig.architect

@@ -93,6 +93,23 @@ export async function getCandidates(status?: CandidateStatus): Promise<Candidate
   return data ?? mockCandidates
 }
 
+
+export async function updateCandidateStatus(candidateId: string, status: CandidateStatus): Promise<boolean> {
+  if (!candidateId) return false
+
+  const result = await supabaseFetch(
+    `candidates?id=eq.${encodeURIComponent(candidateId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+      headers: { Prefer: 'return=minimal' },
+    },
+    true,
+  )
+
+  return result !== null
+}
+
 // ── Report persistence ────────────────────────────────────────────────────────
 
 export async function createReport(userId: string, payload: PrismReport) {

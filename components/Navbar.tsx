@@ -12,7 +12,7 @@ const navLinks = [
 
 const rightLinks = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/login',     label: 'Sign in', primary: true },
+  { href: '/signin',     label: 'Sign in', primary: true },
 ]
 
 export default function Navbar() {
