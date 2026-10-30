@@ -45,6 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(data.session)
       setUser(data.session?.user ?? null)
       setLoading(false)
+    }).catch(() => {
+      setUser(null)
+      setSession(null)
+      setLoading(false)
     })
 
     const {
@@ -77,7 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = getSupabaseBrowserClient()
-    if (supabase) await supabase.auth.signOut()
+    if (supabase) {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    }
     if (typeof window !== 'undefined') {
       window.location.href = '/signin'
     }

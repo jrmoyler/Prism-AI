@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { validScores } from '../../../prism/validation'
+import { verifiedUser } from '../../../lib/server-auth'
+import { rateLimit } from '../../../lib/api-guard'
 import { createReport } from '../../../lib/supabase'
 import type { PrismReport } from '../../../lib/types'
 import type { PrismRole } from '../../../prism/questions'
@@ -10,47 +13,18 @@ function isValidRole(role: unknown): role is PrismRole {
   return typeof role === 'string' && VALID_ROLES_SET.has(role)
 }
 
-function isValidScores(scores: unknown): scores is Record<string, number> {
-  if (!scores || typeof scores !== 'object' || Array.isArray(scores)) return false
-  return Object.values(scores as Record<string, unknown>).every(
-    (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 100,
-  )
-}
-
-async function getAuthenticatedUserId(request: Request): Promise<string | null> {
-  const authHeader = request.headers.get('authorization')
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
-  if (!token) return null
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
-  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
-  if (!supabaseUrl || !supabaseAnon) return null
-
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      apikey: supabaseAnon,
-      Authorization: `Bearer ${token}`,
-    },
-  })
-
-  if (!response.ok) return null
-  const user = (await response.json()) as { id?: string }
-  return user.id ?? null
-}
-
-
 function safeList(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return fallback
   const normalized = value
     .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-    .map((item) => item.trim())
+    .map((item) => item.trim().slice(0, 500))
     .slice(0, 3)
 
   return normalized.length > 0 ? normalized : fallback
 }
 
 function safeSummary(value: unknown, fallback: string): string {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim().slice(0, 2000) : fallback
 }
 
 async function generateWithLLM(input: {
@@ -62,7 +36,7 @@ async function generateWithLLM(input: {
   if (!key) return null
 
   const prompt = [
-    'You are a career strategy assistant.',
+    'You are a career exploration assistant. These are self-reported interests, not validated skills or hiring predictions. Avoid claims about aptitude or guaranteed outcomes.',
     'Return strict JSON with keys: summary, strengths, jobRoles, skillRoadmap, learningResources.',
     'Each list should contain exactly 3 items.',
     `Primary role: ${input.primaryRole}. Secondary role: ${input.secondaryRole}.`,
@@ -72,6 +46,7 @@ async function generateWithLLM(input: {
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${key}`,
@@ -90,8 +65,11 @@ async function generateWithLLM(input: {
     const content = data.choices?.[0]?.message?.content
     if (!content) return null
 
-    const parsed = JSON.parse(content) as Partial<PrismReport>
-    return parsed
+    const parsed: unknown = JSON.parse(content)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    const candidate = parsed as Partial<PrismReport>
+    if (typeof candidate.summary !== 'string' || !candidate.summary.trim()) return null
+    return candidate
   } catch (error) {
     console.error('[prism-report] generation failed', error)
     return null
@@ -99,6 +77,8 @@ async function generateWithLLM(input: {
 }
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, 'report', 5)
+  if (limited) return limited
   let body: { primaryRole?: unknown; secondaryRole?: unknown; scores?: unknown }
 
   try {
@@ -107,45 +87,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  if (!isValidRole(body.primaryRole) || !isValidRole(body.secondaryRole)) {
+  if (!body || !isValidRole(body.primaryRole) || !isValidRole(body.secondaryRole)) {
     return NextResponse.json({ error: 'Invalid role payload' }, { status: 400 })
   }
 
-  if (!isValidScores(body.scores)) {
-    return NextResponse.json({ error: 'scores must contain numeric values between 0 and 100' }, { status: 400 })
+  if (!validScores(body.scores)) {
+    return NextResponse.json({ error: 'scores must contain all five PRISM roles with numeric values between 0 and 100' }, { status: 400 })
   }
 
-  const aiReport = await generateWithLLM({
-    primaryRole: body.primaryRole,
-    secondaryRole: body.secondaryRole,
+  const user = await verifiedUser(req)
+  const ranking = Object.entries(body.scores).sort((a, b) => b[1] - a[1])
+  const primaryRole = ranking[0][0] as PrismRole
+  const secondaryRole = ranking[1][0] as PrismRole
+  const aiReport = user ? await generateWithLLM({
+    primaryRole,
+    secondaryRole,
     scores: body.scores,
-  })
+  }) : null
 
-  const fallbackSummary = `Your strongest alignment is ${body.primaryRole}, with meaningful overlap in ${body.secondaryRole}. Build depth in your primary role while developing cross-functional strengths for long-term career leverage.`
-
-  const fallbackStrengths = [
-    'Structured problem solving and strategic thinking',
-    'Cross-functional collaboration and communication',
-    'Execution discipline with measurable outcomes',
-  ]
-
-  const fallbackJobRoles = [
-    'AI Product Manager',
-    'Solutions Architect',
-    'Technical Program Manager',
-  ]
-
-  const fallbackRoadmap = [
-    'Year 1: Strengthen AI and analytics fundamentals',
-    'Year 2: Ship high-impact cross-functional initiatives',
-    'Year 3: Lead strategy and mentor emerging talent',
-  ]
-
-  const fallbackResources = [
-    'DeepLearning.AI practical AI courses',
-    'Reforge strategy and product programs',
-    'Hands-on portfolio projects with measurable outcomes',
-  ]
+  const guidance: Record<PrismRole, { strengths: string[]; roles: string[]; project: string }> = {
+    architect: { strengths: ['Interest in system boundaries', 'Attention to technical trade-offs', 'Preference for infrastructure work'], roles: ['Solutions architect', 'Platform engineer', 'AI systems engineer'], project: 'Design a small AI service and document its data flow, failure modes, and cost limits.' },
+    integrator: { strengths: ['Interest in connected workflows', 'Attention to handoffs', 'Preference for automation'], roles: ['Integration engineer', 'Automation specialist', 'AI implementation consultant'], project: 'Connect two tools with a documented, retry-safe workflow and measure the time it saves.' },
+    designer: { strengths: ['Interest in user experience', 'Attention to usability', 'Preference for prototyping'], roles: ['Product designer', 'Conversation designer', 'UX researcher'], project: 'Prototype an AI-assisted workflow and observe three people completing a task with it.' },
+    educator: { strengths: ['Interest in teaching', 'Attention to clear explanations', 'Preference for mentoring'], roles: ['Technical educator', 'Developer advocate', 'Learning experience designer'], project: 'Teach one AI concept in a short workshop, then revise it using learner feedback.' },
+    consultant: { strengths: ['Interest in business context', 'Attention to stakeholder needs', 'Preference for advisory work'], roles: ['AI adoption consultant', 'Business analyst', 'AI product strategist'], project: 'Write an AI adoption brief for a real workflow with costs, risks, and a small pilot plan.' },
+  }
+  const selected = guidance[primaryRole]
+  const fallbackSummary = `Your responses show the strongest interest in ${primaryRole} work, followed by ${secondaryRole}. Use this as a starting point for exploration. These scores describe self-reported preferences, not demonstrated skill or a hiring recommendation.`
+  const fallbackStrengths = selected.strengths
+  const fallbackJobRoles = selected.roles
+  const fallbackRoadmap = [selected.project, 'Ask a practitioner to review your work against real role expectations.', 'Use that feedback to choose one skill to practice next.']
+  const fallbackResources = ['Official documentation for the tools used in your project', 'Public case studies from practitioners in your chosen role', 'A portfolio review with a mentor or peer']
 
   const report: PrismReport = {
     summary: safeSummary(aiReport?.summary, fallbackSummary),
@@ -157,15 +129,13 @@ export async function POST(req: Request) {
 
   let saved = false
 
-  const userId = await getAuthenticatedUserId(req)
-  if (userId) {
+  if (user) {
     try {
-      await createReport(userId, report)
-      saved = true
+      saved = await createReport(user.id, report, req)
     } catch (error) {
       console.error('[prism-report] persistence failed', error)
     }
   }
 
-  return NextResponse.json({ ...report, saved })
+  return NextResponse.json({ ...report, saved, source: aiReport ? 'ai' : 'guided' })
 }
