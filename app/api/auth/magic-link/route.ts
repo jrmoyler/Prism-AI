@@ -1,30 +1,22 @@
 import { NextResponse } from 'next/server'
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { getServerSupabase } from '../../../../lib/server-auth'
+import { rateLimit, sameOrigin } from '../../../../lib/api-guard'
 
 export async function POST(req: Request) {
-  const form = await req.formData()
-  const rawEmail = String(form.get('email') ?? '')
-  const email = rawEmail.trim().toLowerCase().slice(0, 254)
-
-  if (!EMAIL_REGEX.test(email)) {
-    return NextResponse.redirect(new URL('/login?error=invalid_email', req.url))
-  }
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/auth/callback`
-
-  if (url && anon) {
-    await fetch(`${url}/auth/v1/otp`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: anon,
-      },
-      body: JSON.stringify({ email, create_user: true, options: { emailRedirectTo: redirectTo } }),
-    })
-  }
-
-  return NextResponse.redirect(new URL('/login?sent=1', req.url))
+  if (!sameOrigin(req)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
+  const limited = rateLimit(req, 'magic-link', 5)
+  if (limited) return NextResponse.redirect(new URL('/signin?error=rate_limited', req.url), 303)
+  const redirect = (query: string) => NextResponse.redirect(new URL(`/signin?${query}`, req.url), 303)
+  let form: FormData
+  try { form = await req.formData() } catch { return redirect('error=invalid_email') }
+  const email = String(form.get('email') ?? '').trim().toLowerCase()
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return redirect('error=invalid_email')
+  const client = await getServerSupabase()
+  if (!client) return redirect('error=not_configured')
+  try {
+    const { error } = await client.auth.signInWithOtp({ email, options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin}/auth/callback`,
+    } })
+    return redirect(error ? 'error=send_failed' : 'sent=1')
+  } catch { return redirect('error=send_failed') }
 }

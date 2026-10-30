@@ -1,0 +1,3 @@
+'use client'
+import Link from 'next/link'
+export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) { return <main className="mx-auto max-w-3xl px-6 py-24"><p className="eyebrow">Unable to load this page</p><h1 className="text-4xl mt-5 mb-4">Let’s try that again.</h1><p className="text-slate-400 mb-8">The page couldn’t finish loading. Your saved assessment remains in this browser.</p><div className="flex gap-4"><button className="action-primary" onClick={reset}>Try again</button><Link className="action-secondary" href="/">Go home</Link></div></main> }

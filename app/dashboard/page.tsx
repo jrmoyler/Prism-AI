@@ -1,233 +1,33 @@
-import dynamic from 'next/dynamic'
-import { getCandidates } from '../../lib/supabase'
-import CandidateStatusSelect from '../../components/CandidateStatusSelect'
+import { getCandidateCollection } from '../../lib/supabase'
+import DashboardAnalytics from '../../components/DashboardAnalytics'
+import CandidateDirectory from '../candidates/CandidateDirectory'
+import WorkspaceNotice from '../candidates/WorkspaceNotice'
 import type { CandidateStatus } from '../../lib/types'
 
-const DashboardAnalytics = dynamic(() => import('../../components/DashboardAnalytics'), {
-  ssr: false,
-  loading: () => <div className="h-[280px] rounded-2xl bg-white/5 animate-pulse" />,
-})
-
+export const dynamic = 'force-dynamic'
 const statuses: CandidateStatus[] = ['new', 'review', 'interview', 'hired', 'rejected']
+const roles = ['architect', 'integrator', 'designer', 'educator', 'consultant']
 
-const statusConfig: Record<CandidateStatus, { label: string; color: string; bg: string; border: string }> = {
-  new: { label: 'New', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.2)' },
-  review: { label: 'Review', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)', border: 'rgba(96,165,250,0.2)' },
-  interview: { label: 'Interview', color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.2)' },
-  hired: { label: 'Hired', color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.2)' },
-  rejected: { label: 'Rejected', color: '#f87171', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
-}
-
-const roleConfig: Record<string, { color: string; bg: string; border: string }> = {
-  architect: { color: '#818cf8', bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.2)' },
-  integrator: { color: '#a78bfa', bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.2)' },
-  designer: { color: '#f472b6', bg: 'rgba(244,114,182,0.1)', border: 'rgba(244,114,182,0.2)' },
-  educator: { color: '#34d399', bg: 'rgba(52,211,153,0.1)', border: 'rgba(52,211,153,0.2)' },
-  consultant: { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.2)' },
-}
-
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: { status?: CandidateStatus }
-}) {
-  const selected = searchParams.status
-  const candidates = await getCandidates(selected)
-
-  const totalCount = candidates.length
-  const avgScore = totalCount
-    ? Math.round(candidates.reduce((acc, c) => acc + c.score, 0) / totalCount)
-    : 0
-  const interviewRate = Math.round(
-    (candidates.filter((c) => c.status === 'interview').length / Math.max(totalCount, 1)) * 100,
-  )
-
-  const roleDistribution = Object.entries(
-    candidates.reduce((acc, c) => {
-      acc[c.desired_role] = (acc[c.desired_role] || 0) + 1
-      return acc
-    }, {} as Record<string, number>),
-  ).map(([role, count]) => ({ role, count }))
-
-  const pipelineDistribution = statuses.map((status) => ({
-    status,
-    count: candidates.filter((candidate) => candidate.status === status).length,
-  }))
-
-  const averageScoreByRole = Object.keys(roleConfig).map((role) => {
-    const byRole = candidates.filter((candidate) => candidate.desired_role === role)
-    const score = byRole.length ? Math.round(byRole.reduce((acc, row) => acc + row.score, 0) / byRole.length) : 0
-    return { role, score }
-  })
-
-  return (
-    <main className="mx-auto max-w-7xl px-6 py-12 space-y-8">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-            Admin
-          </p>
-          <h1 className="text-3xl font-bold text-white">Hiring Dashboard</h1>
-          <p className="text-sm text-slate-500">Real-time pipeline analytics and candidate management</p>
-        </div>
-        <a
-          href="/candidates"
-          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors flex-shrink-0"
-          style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.07)',
-          }}
-        >
-          All Candidates
-        </a>
-      </div>
-
-      <div className="grid sm:grid-cols-3 gap-4">
-        <MetricCard title="Total Candidates" value={String(totalCount)} sub="in current view" color="#818cf8" />
-        <MetricCard title="Average Score" value={String(avgScore)} sub="across all roles" color="#34d399" />
-        <MetricCard title="Interview Rate" value={`${interviewRate}%`} sub="pipeline conversion" color="#fbbf24" />
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <a
-          href="/dashboard"
-          className="rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
-          style={{
-            background: !selected ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
-            border: !selected ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(255,255,255,0.07)',
-            color: !selected ? '#818cf8' : '#64748b',
-          }}
-        >
-          All
-        </a>
-        {statuses.map((status) => {
-          const cfg = statusConfig[status]
-          const active = selected === status
-          return (
-            <a
-              key={status}
-              href={`/dashboard?status=${status}`}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-all"
-              style={{
-                background: active ? cfg.bg : 'rgba(255,255,255,0.04)',
-                border: active ? `1px solid ${cfg.border}` : '1px solid rgba(255,255,255,0.07)',
-                color: active ? cfg.color : '#64748b',
-              }}
-            >
-              {cfg.label}
-            </a>
-          )
-        })}
-      </div>
-
-      <DashboardAnalytics
-        roleDistribution={roleDistribution}
-        pipelineDistribution={pipelineDistribution}
-        averageScoreByRole={averageScoreByRole}
-      />
-
-      <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
-        <div
-          className="px-5 py-4 flex items-center justify-between"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}
-        >
-          <h2 className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-            Candidates
-          </h2>
-          <span className="text-xs text-slate-600 font-mono">{totalCount} total</span>
-        </div>
-
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(255,255,255,0.01)' }}>
-              {['Candidate', 'Role', 'Status', 'Score'].map((h) => (
-                <th key={h} className="px-5 py-3 text-xs font-medium" style={{ color: '#475569' }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {candidates.map((candidate, i) => {
-              const roleCfg = roleConfig[candidate.desired_role] ?? roleConfig.architect
-              const statusCfg = statusConfig[candidate.status as CandidateStatus] ?? statusConfig.new
-              const scoreColor = candidate.score >= 75 ? '#34d399' : candidate.score >= 50 ? '#fbbf24' : '#f87171'
-
-              return (
-                <tr
-                  key={candidate.id}
-                  className="group transition-colors"
-                  style={{
-                    borderBottom: i < candidates.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                  }}
-                >
-                  <td className="px-5 py-4">
-                    <div className="font-medium text-slate-100 text-sm">{candidate.full_name}</div>
-                    <div className="text-xs text-slate-600">{candidate.email}</div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
-                      style={{
-                        background: roleCfg.bg,
-                        color: roleCfg.color,
-                        border: `1px solid ${roleCfg.border}`,
-                      }}
-                    >
-                      {candidate.desired_role}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <CandidateStatusSelect
-                      candidateId={candidate.id}
-                      status={candidate.status}
-                      labelMap={{
-                        new: statusConfig.new.label,
-                        review: statusConfig.review.label,
-                        interview: statusConfig.interview.label,
-                        hired: statusConfig.hired.label,
-                        rejected: statusConfig.rejected.label,
-                      }}
-                      style={{
-                        background: statusCfg.bg,
-                        color: statusCfg.color,
-                        border: `1px solid ${statusCfg.border}`,
-                      }}
-                    />
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="text-xs font-mono" style={{ color: scoreColor }}>
-                      {candidate.score}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </main>
-  )
-}
-
-function MetricCard({ title, value, sub, color }: { title: string; value: string; sub: string; color: string }) {
-  return (
-    <div
-      className="rounded-2xl p-5 space-y-2"
-      style={{
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.06)',
-      }}
-    >
-      <p className="text-xs font-medium uppercase tracking-widest" style={{ color: '#64748b' }}>
-        {title}
-      </p>
-      <p className="text-4xl font-bold" style={{ color }}>
-        {value}
-      </p>
-      <p className="text-xs" style={{ color: '#475569' }}>
-        {sub}
-      </p>
-    </div>
-  )
+export default async function DashboardPage({searchParams}: {searchParams:Promise<{error?:string;updated?:string}>}) {
+  const params = await searchParams
+  const {candidates, source} = await getCandidateCollection()
+  const total = candidates.length
+  const average = total ? Math.round(candidates.reduce((sum, candidate) => sum + candidate.score, 0) / total) : null
+  const needsReview = candidates.filter(candidate => candidate.status === 'new' || candidate.status === 'review').length
+  const roleDistribution = roles.map(role => ({role, count:candidates.filter(candidate => candidate.desired_role === role).length}))
+  const pipelineDistribution = statuses.map(status => ({status, count:candidates.filter(candidate => candidate.status === status).length}))
+  const averageScoreByRole = roles.map(role => {const matching = candidates.filter(candidate => candidate.desired_role === role);return {role, score:matching.length ? Math.round(matching.reduce((sum,candidate) => sum + candidate.score,0)/matching.length) : 0}})
+  return <main className="mx-auto max-w-7xl space-y-8 px-6 py-12">
+    <header className="flex flex-wrap items-end justify-between gap-6"><div><p className="mb-4 font-mono text-xs uppercase tracking-[0.2em]" style={{color:'#D4A843'}}>PRISM / Hiring workspace</p><h1 className="text-4xl font-semibold tracking-tight md:text-5xl">A clearer view of talent.</h1><p className="mt-4 max-w-2xl text-slate-400">Review the pipeline, understand role interests and move candidates forward with intention.</p></div><a href="/candidates" className="inline-flex min-h-11 items-center border border-slate-600 px-5 text-sm">Open directory</a></header>
+    <WorkspaceNotice source={source}/>
+    {params.updated === '1' && <p role="status" className="border border-emerald-400/30 p-4 text-sm" style={{color:'#00D9B5'}}>Candidate stage saved.</p>}
+    {params.error && <p role="alert" className="border border-red-400/40 p-4 text-sm text-red-300">{params.error === 'invalid_status' ? 'That stage change was not valid. Choose a stage and save again.' : 'The stage change could not be saved. The current records below reflect the last saved state.'}</p>}
+    {(source === 'demo' || source === 'live') && <>
+      <section aria-label="Workspace totals" className="grid divide-y divide-slate-700 border border-slate-700 md:grid-cols-3 md:divide-x md:divide-y-0" style={{background:'#0D1326'}}>
+        {[{title:'Candidates',value:total,note:'All records in this workspace'},{title:'Awaiting review',value:needsReview,note:'New and review stages'},{title:'Average self-assessment',value:average === null ? '—' : `${average}/100`,note:'Preference signal, not proficiency'}].map(metric => <article key={metric.title} className="p-6"><h2 className="text-sm text-slate-400">{metric.title}</h2><p className="my-4 font-mono text-4xl" style={{color:'#D4A843'}}>{metric.value}</p><p className="text-xs text-slate-400">{metric.note}</p></article>)}
+      </section>
+      <DashboardAnalytics roleDistribution={roleDistribution} pipelineDistribution={pipelineDistribution} averageScoreByRole={averageScoreByRole}/>
+      <CandidateDirectory candidates={candidates} editable={source === 'live'}/>
+    </>}
+  </main>
 }

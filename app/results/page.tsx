@@ -1,319 +1,60 @@
-"use client"
+'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { motion, type Variants } from 'framer-motion'
-import dynamic from 'next/dynamic'
-import ScoreBar from '../../components/ui/ScoreBar'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import RadarChart from '../../components/RadarChart'
 import type { PrismRole } from '../../prism/questions'
 import { getSupabaseBrowserClient } from '../../lib/supabase-client'
 
-type Stored = {
-  normalizedScores: Record<PrismRole, number>
-  primaryRole:   PrismRole
-  secondaryRole: PrismRole
-}
+const roles: PrismRole[] = ['architect', 'integrator', 'designer', 'educator', 'consultant']
+type Stored = { normalizedScores: Record<PrismRole, number>; primaryRole: PrismRole; secondaryRole: PrismRole; saveError?: string }
+const panel = { background: '#0D1326', border: '1px solid #263147' }
 
-const defaultData: Stored = {
-  normalizedScores: { architect: 0, integrator: 0, designer: 0, educator: 0, consultant: 0 },
-  primaryRole:   'architect',
-  secondaryRole: 'integrator',
-}
-
-const roleConfig: Record<PrismRole, {
-  label: string
-  description: string
-  color: string
-  bg: string
-  border: string
-}> = {
-  architect: {
-    label: 'Architect',
-    description: 'Scalable system designer with deep technical vision.',
-    color: '#818cf8',
-    bg: 'rgba(99,102,241,0.08)',
-    border: 'rgba(99,102,241,0.2)',
-  },
-  integrator: {
-    label: 'Integrator',
-    description: 'Automation-oriented bridge between people, tools, and workflow.',
-    color: '#a78bfa',
-    bg: 'rgba(139,92,246,0.08)',
-    border: 'rgba(139,92,246,0.2)',
-  },
-  designer: {
-    label: 'Designer',
-    description: 'Experience-first creator focused on product craft.',
-    color: '#f472b6',
-    bg: 'rgba(244,114,182,0.08)',
-    border: 'rgba(244,114,182,0.2)',
-  },
-  educator: {
-    label: 'Educator',
-    description: 'Knowledge multiplier who mentors and communicates AI concepts.',
-    color: '#34d399',
-    bg: 'rgba(52,211,153,0.08)',
-    border: 'rgba(52,211,153,0.2)',
-  },
-  consultant: {
-    label: 'Consultant',
-    description: 'Business-aligned strategist who bridges AI and outcomes.',
-    color: '#fbbf24',
-    bg: 'rgba(251,191,36,0.08)',
-    border: 'rgba(251,191,36,0.2)',
-  },
-}
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  show:   { opacity: 1, y: 0,  transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] } },
-}
-
-const stagger = {
-  show: { transition: { staggerChildren: 0.1 } },
-}
-
-
-const RadarChart = dynamic(() => import('../../components/RadarChart'), {
-  ssr: false,
-  loading: () => <div className="h-[320px] rounded-xl bg-white/5 animate-pulse" />,
-})
 export default function ResultsPage() {
-  const [result, setResult]   = useState<Stored>(defaultData)
+  const [result, setResult] = useState<Stored | null>(null)
+  const [ready, setReady] = useState(false)
   const [loading, setLoading] = useState(false)
-
+  const [error, setError] = useState('')
   useEffect(() => {
-    const raw = localStorage.getItem('prism-results-v1')
-    if (!raw) return
-    setResult({ ...defaultData, ...JSON.parse(raw) })
+    try {
+      const parsed = JSON.parse(localStorage.getItem('prism-results-v1') ?? 'null')
+      if (parsed && roles.includes(parsed.primaryRole) && roles.includes(parsed.secondaryRole) && roles.every(role => typeof parsed.normalizedScores?.[role] === 'number' && Number.isFinite(parsed.normalizedScores[role]) && parsed.normalizedScores[role] >= 0 && parsed.normalizedScores[role] <= 100)) setResult(parsed)
+    } catch { /* Invalid or inaccessible local data has an explicit empty state. */ }
+    setReady(true)
   }, [])
 
-  const chartData = useMemo(
-    () => Object.entries(result.normalizedScores).map(([role, score]) => ({ role, score })),
-    [result.normalizedScores],
-  )
-
-  const generateReport = async () => {
-    setLoading(true)
-
+  async function generateReport() {
+    if (!result || loading) return
+    setLoading(true); setError('')
     try {
       const supabase = getSupabaseBrowserClient()
       const session = supabase ? (await supabase.auth.getSession()).data.session : null
-
       const response = await fetch('/api/prism-report', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          primaryRole: result.primaryRole,
-          secondaryRole: result.secondaryRole,
-          scores: result.normalizedScores,
-        }),
+        headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({ primaryRole: result.primaryRole, secondaryRole: result.secondaryRole, scores: result.normalizedScores }),
       })
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}))
-        throw new Error((payload as { error?: string }).error ?? 'Failed to generate report')
-      }
-
       const report = await response.json()
+      if (!response.ok) throw new Error(report.error || 'Unable to generate your report. Please try again.')
       localStorage.setItem('prism-report-v1', JSON.stringify(report))
-      window.location.href = '/reports'
-    } catch (error) {
-      console.error('[results] report generation failed', error)
-      setLoading(false)
-      alert('We could not generate your report right now. Please try again.')
-    }
+      window.location.assign('/reports')
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Unable to save your report. Enable browser storage and try again.'); setLoading(false) }
   }
-
-  const primary   = roleConfig[result.primaryRole]   ?? roleConfig.architect
-  const secondary = roleConfig[result.secondaryRole] ?? roleConfig.integrator
-
-  return (
-    <main className="mx-auto max-w-5xl px-6 py-12 space-y-10">
-
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="space-y-1"
-      >
-        <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#64748b' }}>
-          Assessment Results
-        </p>
-        <h1 className="text-3xl font-bold text-white">Your PRISM Profile</h1>
-        <p className="text-slate-500 text-sm">
-          Based on your 50-question adaptive assessment
-        </p>
-      </motion.div>
-
-      {/* Primary + Secondary Role cards */}
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-        className="grid sm:grid-cols-2 gap-4"
-      >
-        <RoleCard role={result.primaryRole}   label="Primary Role"   config={primary}   delay={0} />
-        <RoleCard role={result.secondaryRole} label="Secondary Role" config={secondary} delay={0.1} />
-      </motion.div>
-
-      {/* Radar Chart */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="rounded-2xl p-8"
-        style={{
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-sm font-semibold text-white">Role Alignment Radar</h2>
-            <p className="text-xs text-slate-600 mt-0.5">Normalized scores across all 5 PRISM dimensions</p>
-          </div>
-          <div
-            className="text-xs font-medium px-2.5 py-1 rounded-full"
-            style={{
-              background: 'rgba(99,102,241,0.1)',
-              border: '1px solid rgba(99,102,241,0.2)',
-              color: '#818cf8',
-            }}
-          >
-            {result.primaryRole.charAt(0).toUpperCase() + result.primaryRole.slice(1)} aligned
-          </div>
-        </div>
-        <RadarChart data={chartData} />
-      </motion.div>
-
-      {/* Score Breakdown */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.3 }}
-        className="rounded-2xl p-6 space-y-5"
-        style={{
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.06)',
-        }}
-      >
-        <h2 className="text-sm font-semibold text-white">Score Breakdown</h2>
-        <div className="space-y-4">
-          {chartData.map(({ role, score }, i) => (
-            <ScoreBar
-              key={role}
-              role={role as PrismRole}
-              score={score}
-              delay={0.4 + i * 0.07}
-            />
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Generate report CTA */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.5 }}
-        className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-2xl p-6"
-        style={{
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.06) 100%)',
-          border: '1px solid rgba(99,102,241,0.15)',
-        }}
-      >
-        <div className="flex-1">
-          <h3 className="text-sm font-semibold text-white">Generate Your AI Career Report</h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            GPT-4o powered insights — strengths, career paths, skills to develop, and tools to learn.
-          </p>
-        </div>
-        <motion.button
-          onClick={generateReport}
-          disabled={loading}
-          whileHover={!loading ? { scale: 1.02, y: -1 } : {}}
-          whileTap={!loading ? { scale: 0.98 } : {}}
-          className="flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white flex-shrink-0"
-          style={{
-            background: loading
-              ? 'rgba(99,102,241,0.4)'
-              : 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)',
-            boxShadow: loading
-              ? 'none'
-              : '0 0 0 1px rgba(99,102,241,0.5), 0 4px 16px rgba(99,102,241,0.25)',
-            opacity: loading ? 0.7 : 1,
-          }}
-        >
-          {loading ? (
-            <>
-              <svg className="h-4 w-4 animate-spin" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6" stroke="white" strokeWidth="2" strokeDasharray="30 10" />
-              </svg>
-              Generating...
-            </>
-          ) : (
-            <>
-              Generate AI Report
-              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </>
-          )}
-        </motion.button>
-      </motion.div>
-    </main>
-  )
-}
-
-function RoleCard({
-  role,
-  label,
-  config,
-  delay,
-}: {
-  role: PrismRole
-  label: string
-  config: typeof roleConfig[PrismRole]
-  delay: number
-}) {
-  return (
-    <motion.div
-      variants={fadeUp}
-      className="rounded-2xl p-5 space-y-3"
-      style={{
-        background: config.bg,
-        border: `1px solid ${config.border}`,
-      }}
-    >
-      <p
-        className="text-xs font-semibold uppercase tracking-widest"
-        style={{ color: config.color, opacity: 0.7 }}
-      >
-        {label}
-      </p>
-      <div>
-        <h3
-          className="text-2xl font-bold"
-          style={{ color: config.color }}
-        >
-          {config.label}
-        </h3>
-        <p className="text-sm text-slate-500 mt-1 leading-relaxed">{config.description}</p>
-      </div>
-      <div
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-        style={{
-          background: `${config.color}18`,
-          border: `1px solid ${config.border}`,
-          color: config.color,
-        }}
-      >
-        <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.color }} />
-        {role}
-      </div>
-    </motion.div>
-  )
+  if (!ready) return <main className="mx-auto max-w-5xl px-6 py-16" aria-busy="true">Loading your results…</main>
+  if (!result) return <main className="mx-auto max-w-3xl px-6 py-20 space-y-6"><p className="text-xs uppercase tracking-widest text-[#D4A843]">Your assessment</p><h1 className="text-4xl">Your profile starts here.</h1><p className="text-slate-300">No valid assessment is saved in this browser. Complete the 50 questions to see your role alignment.</p><Link className="inline-block bg-[#D4A843] px-6 py-3 text-[#050A18] font-semibold" href="/assessment">Take the assessment</Link></main>
+  const chartData = roles.map(role => ({ role, score: result.normalizedScores[role] }))
+  return <main className="mx-auto max-w-6xl px-6 py-12 space-y-10">
+    <header className="space-y-3"><p className="text-xs uppercase tracking-widest text-[#D4A843]">01 / Your role map</p><h1 className="text-4xl md:text-5xl">A direction to explore.</h1><p className="max-w-2xl text-slate-300">Your answers suggest where your interests and working preferences align. Use this profile to choose what to practice next.</p></header>
+    {typeof result.saveError === 'string' && <p role="status" className="border border-[#D4A843] p-4 text-[#D4A843]">{result.saveError}</p>}
+    <section className="grid md:grid-cols-2 gap-px bg-[#263147] border border-[#263147]" aria-label="Strongest role alignment">
+      {[['Strongest alignment', result.primaryRole], ['Supporting alignment', result.secondaryRole]].map(([label, role], i) => <article key={label} className="p-7 bg-[#0D1326]"><p className="text-xs uppercase tracking-widest text-slate-300">{label}</p><h2 className={`text-3xl capitalize mt-4 ${i === 0 ? 'text-[#D4A843]' : 'text-[#00D9B5]'}`}>{role}</h2><p className="mt-2 text-slate-300 font-mono">{result.normalizedScores[role as PrismRole].toFixed(0)} / 100</p></article>)}
+    </section>
+    <section className="grid lg:grid-cols-2 gap-8 p-5 md:p-8" style={panel}>
+      <div><h2 className="text-xl">Five dimensions, one profile.</h2><RadarChart data={chartData} /></div>
+      <div className="space-y-5"><h2 className="text-xl">Your score breakdown</h2>{chartData.map(({ role, score }) => <div key={role}><div className="flex justify-between mb-2 text-sm"><span className="capitalize">{role}</span><span className="font-mono text-[#D4A843]">{score.toFixed(0)} / 100</span></div><meter className="w-full h-3" style={{ accentColor: '#D4A843' }} min={0} max={100} value={score} aria-label={`${role} alignment`}>{score}</meter></div>)}<p className="text-sm text-slate-300 leading-relaxed">Scores are self-reported agreement relative to the maximum response score. They are not percentiles, a skills test, or a prediction of job performance. Equal scores can occur.</p></div>
+    </section>
+    <section className="flex flex-col md:flex-row gap-6 justify-between items-start border-t border-[#263147] pt-8"><div><h2 className="text-2xl">Turn reflection into a plan.</h2><p className="text-slate-300 mt-2">Generate a career report with roles, practice areas, and learning resources.</p></div><button onClick={generateReport} disabled={loading} className="px-6 py-3 bg-[#D4A843] text-[#050A18] font-semibold disabled:opacity-50 whitespace-nowrap">{loading ? 'Preparing report…' : 'Generate career report'}</button></section>
+    {error && <p role="alert" className="text-red-300">{error}</p>}
+    <Link href="/assessment" className="inline-block underline underline-offset-4 text-slate-300">Take a new assessment</Link>
+  </main>
 }

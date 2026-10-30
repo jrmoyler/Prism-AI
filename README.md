@@ -1,114 +1,51 @@
-# PRISM AI (Professional Role Identification & Skill Mapping)
+# PRISM AI
 
-Production-grade Next.js 14 platform for AI career assessment, candidate operations, and hiring analytics.
+Professional Role Identification & Skill Mapping, by Collective AI. PRISM is a career exploration workspace with a 50-question self-assessment, five role dimensions, career reports, and an administrator-only hiring directory.
 
-## Modules
+Scores describe self-reported interests. They are not validated skills, aptitude measures, or hiring recommendations.
 
-1. Assessment Engine (`/assessment`)
-2. AI Career Report Generator (`/api/prism-report`, `/reports`)
-3. Candidate Database (`/candidates`)
-4. Admin Hiring Dashboard (`/dashboard`)
-5. Talent Analytics (dashboard metrics + distribution blocks)
-6. Viral Profile (`/profile/[username]`)
+## Run locally
 
-## File Structure
+Requires Node.js 20.9+ (Node 22 LTS recommended).
 
-```txt
-app/
-  api/
-    score/route.ts
-    prism-report/route.ts
-    auth/magic-link/route.ts
-  assessment/page.tsx
-  results/page.tsx
-  reports/page.tsx
-  candidates/page.tsx
-  dashboard/page.tsx
-  profile/[username]/page.tsx
-  login/page.tsx
-  auth/callback/route.ts
-prism/
-  questions.ts
-  scoring.ts
-lib/
-  supabase.ts
-  types.ts
-supabase/
-  schema.sql
-middleware.ts
-```
-
-## Environment Variables
-
-```bash
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
-OPENAI_API_KEY=<optional-for-llm-reports>
-```
-
-## Supabase Setup
-
-1. Create a Supabase project.
-2. Run SQL from `supabase/schema.sql`.
-3. In Supabase Auth, enable:
-   - Email provider
-   - Google OAuth provider
-4. Set redirect URL to:
-   - `https://<your-domain>/auth/callback`
-
-## Local Development
-
-```bash
-npm install
+```sh
+npm ci
 npm run dev
 ```
 
-## Deploy to Vercel
+Open http://localhost:3000. No keys are required for the local assessment, guided report, sample profile, or read-only hiring demonstration.
 
-1. Import repo in Vercel.
-2. Add all environment variables above in Project Settings.
-3. Deploy branch.
-4. Verify:
-   - `/assessment` saves progress and submits
-   - `/results` renders radar chart and top roles
-   - `/api/prism-report` returns and stores report
-   - `/dashboard` redirects to `/login` if not authenticated
-
-## Notes
-
-- Dashboard route protection is enforced via `middleware.ts`.
-- If `OPENAI_API_KEY` is missing, report generation gracefully falls back to deterministic output.
-# Prism AI
-
-Prism AI is a Next.js app for talent assessment and hiring operations. It now includes:
-
-- Supabase-ready candidate data integration (with local fallback)
-- AI career report generator endpoint and UI
-- Candidate pipeline page
-- Admin hiring dashboard
-- Enterprise analytics summary cards
-
-## Local development
-
-```bash
-npm run dev
-```
-
-## Production build
-
-```bash
+```sh
+npm test
+npm run typecheck
 npm run build
+npm run test:smoke
+npm start
 ```
 
-## Supabase setup
+## Configure accounts and hiring operations
 
-Set the following env vars in `.env.local` and in Vercel project settings:
+Copy `.env.example` to `.env.local`, provide your own values, and follow [SECURITY.md](SECURITY.md). Existing Supabase installations require the included migration before using this version. Hiring operators require a verified `app_metadata.role` of `admin`. Production authentication, RLS, and persistence must be checked against the actual Supabase project before deployment.
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+Optional authenticated AI reports use a server-only OpenAI key. Guests and unavailable model requests receive a labeled, role-specific guided report. Assessment drafts and generated reports are saved to browser storage when available; clearing site data removes these local copies.
 
-Expected table:
+## Workspace
 
-`candidates(id, full_name, role, stage, score, created_at)`
+| Route | Purpose |
+| --- | --- |
+| `/` | Interactive role fieldbook and career workflow |
+| `/assessment` | Autosaved assessment with keyboard and touch controls |
+| `/results` | Role scores, interpretation, and report generation |
+| `/reports` | Career report and print view |
+| `/profile/demo` | Explicitly illustrative example profile |
+| `/candidates` | Search/filter directory; authenticated admin editing in live mode |
+| `/dashboard` | Current pipeline counts and role distribution |
+| `/login`, `/signin` | Email and Google authentication when configured |
+
+Personal public profile publishing is not implemented; unknown profile URLs return 404. Candidate import remains an operator database task. Demo records are never writable.
+
+## Design and validation
+
+The JR-standard upgrade replaces decorative gradients and generic modules with a dark navy, gold, and teal career fieldbook, Space Grotesk headings, and JetBrains Mono data labels. See [DESIGN.md](DESIGN.md) and [DESIGN-AUDIT.md](DESIGN-AUDIT.md) for the design contract and verification limitations.
+
+Next.js is pinned to the maintained 15.x version checked during this upgrade. PostCSS is overridden to a patched compatible 8.x release; the lockfile pins the resolved dependency graph. Review dependency audits as part of future maintenance.
