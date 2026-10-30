@@ -22,7 +22,7 @@ export default function HomePage() {
           <p className="eyebrow">Collective AI / Career intelligence</p>
           <h1 id="home-heading">Your strengths.<br />A clearer<br /><em>direction.</em></h1>
           <p className="hero-description">Find your place in AI through the work you want to do. Map your interests across five roles, then turn your results into a practical next step.</p>
-          <div className="hero-actions"><Link className="action-primary" href="/assessment">Map my strengths <span aria-hidden="true">↗</span></Link><Link className="action-text" href="/profile/demo">Explore a sample profile</Link></div>
+          <div className="hero-actions"><Link className="action-primary" href="/assessment">Map my strengths</Link><Link className="action-text" href="/profile/demo">Explore a sample profile</Link></div>
           <p className="hero-note">{QUESTION_COUNT} questions · Five role dimensions · Start without an account</p>
         </div>
         <aside className="role-index" aria-label="Explore the five PRISM roles">
@@ -37,12 +37,12 @@ export default function HomePage() {
       <section className="journey-section" aria-labelledby="journey-title">
         <div className="section-intro"><p className="eyebrow">From reflection to practice</p><h2 id="journey-title">A starting point.<br />Not a label.</h2><p>Your scores reflect your answers today. Use them to explore possibilities, not to limit what you can become.</p></div>
         <ol className="journey-list">
-          <li><span className="folio">01 / Reflect</span><h3>Start with how you work.</h3><p>Respond to statements about your interests and preferences. Progress saves in this browser when storage is available.</p><Link href="/assessment">Open assessment <span aria-hidden="true">↗</span></Link></li>
-          <li><span className="folio">02 / Understand</span><h3>Read your role map.</h3><p>Compare your five dimensions and explore where your interests overlap. These are self-reported scores, not verified skill ratings.</p><Link href="/results">View my results <span aria-hidden="true">↗</span></Link></li>
-          <li><span className="folio">03 / Build</span><h3>Choose your next project.</h3><p>Use your career report to decide what to practice and which work samples to create next.</p><Link href="/reports">Open career report <span aria-hidden="true">↗</span></Link></li>
+          <li><span className="folio">01 / Reflect</span><h3>Start with how you work.</h3><p>Respond to statements about your interests and preferences. Progress saves in this browser when storage is available.</p><Link href="/assessment">Open assessment</Link></li>
+          <li><span className="folio">02 / Understand</span><h3>Read your role map.</h3><p>Compare your five dimensions and explore where your interests overlap. These are self-reported scores, not verified skill ratings.</p><Link href="/results">View my results</Link></li>
+          <li><span className="folio">03 / Build</span><h3>Choose your next project.</h3><p>Use your career report to decide what to practice and which work samples to create next.</p><Link href="/reports">Open career report</Link></li>
         </ol>
       </section>
-      <section className="team-strip"><div><p className="eyebrow">For hiring teams</p><h2>See the person behind the profile.</h2><p>Review the candidate pipeline and use role preferences as one part of a broader conversation.</p></div><Link className="action-secondary" href="/dashboard">Open hiring workspace <span aria-hidden="true">↗</span></Link></section>
+      <section className="team-strip"><div><p className="eyebrow">For hiring teams</p><h2>See the person behind the profile.</h2><p>Review the candidate pipeline and use role preferences as one part of a broader conversation.</p></div><Link className="action-secondary" href="/dashboard">Open hiring workspace</Link></section>
       <footer className="site-footer"><span>PRISM AI <span className="footer-expansion">/ Professional Role Identification &amp; Skill Mapping</span></span><span>Collective AI · {new Date().getFullYear()}</span></footer>
     </main>
   )
