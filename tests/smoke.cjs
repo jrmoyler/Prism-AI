@@ -9,8 +9,16 @@ const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'star
   for (const [path, status, phrase] of [['/', 200, 'Your strengths.'], ['/assessment', 200, 'PRISM'], ['/results', 200, 'PRISM'], ['/reports', 200, 'PRISM'], ['/dashboard', 200, 'sample'], ['/candidates', 200, 'sample'], ['/login', 200, 'Sign'], ['/profile/demo', 200, 'Illustrative'], ['/profile/not-real', 404, 'available']]) {
     const response = await fetch(base + path)
     assert.equal(response.status, status, path)
-    assert((await response.text()).toLowerCase().includes(phrase.toLowerCase()), path)
+    const html = await response.text()
+    assert(html.toLowerCase().includes(phrase.toLowerCase()), path)
+    if (status === 200) assert(html.includes('https://collectiveai.info/'), `${path}: studio return link`)
+    if (status === 200) assert(html.includes('Collective AI network'), `${path}: network navigation`)
     console.log(path, status)
+  }
+  for (const asset of ['/fonts/space-grotesk-var.woff2', '/fonts/jetbrains-mono-var.woff2', '/img/collective-atrium-800.webp', '/img/collective-atrium-1600.webp']) {
+    const resource = await fetch(base + asset)
+    assert.equal(resource.status, 200, asset)
+    assert(Number(resource.headers.get('content-length')) > 1000, asset)
   }
   const answers = Object.fromEntries(Array.from({ length: 50 }, (_, index) => [index + 1, 3]))
   const response = await fetch(base + '/api/prism-score', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ answers }) })

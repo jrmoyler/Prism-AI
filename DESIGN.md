@@ -79,3 +79,8 @@ No previous repository design ledger existed. The initial ledger therefore recor
 ## Validation contract
 
 Build and type checks, backend regression tests and a static design scan precede delivery. Verify desktop 1440×900, mobile 390×844, reduced motion, keyboard focus, mobile navigation and the assessment→results→report path when a browser is available. Record unavailable checks honestly in `DESIGN-AUDIT.md`. No screenshot-fidelity claim applies: the user supplied a repository, not a target design image.
+
+## Connected studio upgrade — November 2026
+The career fieldbook now belongs visibly to the Collective AI web ecosystem. A persistent studio return link and a route-aware context rail orient every screen. The three assessment stages remain direct links, never implied completion indicators. Inner pages gain a shared editorial masthead, square instrument panels and consistent focus states. The candidate directory reflows into labeled records on small screens without hiding fields or duplicating mutation controls. Reports offer a plain-text copy action in addition to print; permission failures retain the report and provide recovery.
+
+Fonts are served locally from the parent repository's existing font assets. A labeled architectural concept strip on the public landing page connects the platform to the studio without claiming it is a real facility. The artwork uses the generated parent atrium with responsive WebP delivery. No generated candidate or founder portraits, invented scores, or scoring/auth changes are part of this upgrade.
