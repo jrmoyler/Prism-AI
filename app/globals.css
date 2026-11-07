@@ -38,4 +38,4 @@ a:hover .tile,a:focus-visible .tile{transform:translateY(-2px)}
 @media(max-width:640px){.ecosystem-footer{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.scene-host .scene-canvas{transition:none}}
 /* Give the prism its own column between the copy and the fieldbook on wide screens. */
-@media(min-width:1101px){.fieldbook-hero{grid-template-columns:1fr .72fr 1fr;min-height:640px}.fieldbook-hero .role-index{grid-column:3}.hero-copy{padding-right:24px}.hero-copy h1{font-size:clamp(52px,4.4vw,72px)}.hero-scene::after{background:linear-gradient(90deg,#050A18f0 0%,#050A18cc 28%,#050A1833 40%,#050A1812 58%,#050A1840 100%),linear-gradient(0deg,#050A18 0%,transparent 28%)}}
+@media(min-width:1101px){.fieldbook-hero{grid-template-columns:1fr .72fr 1fr;min-height:640px}.fieldbook-hero .role-index{grid-column:3}.hero-copy{padding-right:24px}.hero-copy h1{font-size:clamp(52px,4.4vw,72px)}.hero-scene::after{background:linear-gradient(90deg,#050A18fa 0%,#050A18f2 26%,#050A18b3 34%,#050A1833 42%,#050A1812 58%,#050A1840 100%),linear-gradient(0deg,#050A18 0%,transparent 28%)}}
