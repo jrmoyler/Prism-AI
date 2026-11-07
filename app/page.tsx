@@ -29,14 +29,14 @@ export default function HomePage() {
           <p className="hero-scene-note">The prism: one beam in, five directions out. Pick a role and its band lights. A live scene, drawn in your browser.</p>
           <p className="hero-note">{QUESTION_COUNT} questions across five role dimensions. Start without an account.</p>
         </div>
-        <aside className="role-index" aria-label="Explore the five PRISM roles">
+        <section className="role-index" aria-label="Explore the five PRISM roles">
           <div className="index-heading"><span className="index-title">The role fieldbook</span><span className="folio">01 to 05</span></div>
           <p className="index-intro">There is more than one way<br />to build with AI.</p>
           <div className="role-list" aria-label="Choose a role">
             {disciplines.map((role, index) => <button key={role.name} className={selected === index ? 'role-row is-selected' : 'role-row'} aria-pressed={selected === index} onClick={() => setSelected(index)}><span className="folio">0{index + 1}</span><span>{role.name}</span><span aria-hidden="true">{selected === index ? '−' : '+'}</span></button>)}
           </div>
           <div className="role-detail" aria-live="polite"><h2>{discipline.verb}</h2><p className="role-skills">{discipline.skills}</p><p>{discipline.description}</p><div className="project-prompt"><span className="folio">Try this</span><p>{discipline.project}</p></div></div>
-        </aside>
+        </section>
       </section>
       <section className="journey-section" aria-labelledby="journey-title">
         <div className="section-intro"><h2 id="journey-title">A starting point.<br />Not a label.</h2><p>Your scores reflect your answers today. Use them to explore possibilities, not to limit what you can become.</p></div>

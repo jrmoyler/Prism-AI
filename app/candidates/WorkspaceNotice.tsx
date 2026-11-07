@@ -6,5 +6,5 @@ export default function WorkspaceNotice({ source }: { source: string }) {
     unauthenticated: 'Sign in with an authorized hiring account to view candidate records.',
     live: 'Connected workspace. Candidate records loaded from your hiring database.',
   }
-  return <aside role={source === 'unavailable' ? 'alert' : 'status'} className="border-l-2 px-4 py-4 text-sm leading-relaxed" style={{borderColor:source === 'live' ? '#00D9B5' : '#D4A843',background:'#0D1326',color:'#C5CEDA'}}>{messages[source] ?? messages.unavailable}{source === 'unauthenticated' && <a href="/login" className="ml-2 underline">Sign in</a>}</aside>
+  return <div role={source === 'unavailable' ? 'alert' : 'status'} className="border-l-2 px-4 py-4 text-sm leading-relaxed" style={{borderColor:source === 'live' ? '#00D9B5' : '#D4A843',background:'#0D1326',color:'#C5CEDA'}}>{messages[source] ?? messages.unavailable}{source === 'unauthenticated' && <a href="/login" className="ml-2 underline">Sign in</a>}</div>
 }

@@ -17,7 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
       <body className="min-h-screen">
         <AuthProvider>
-          <nav className="parent-strip" aria-label="Collective AI network"><div className="in">
+          <nav className="parent-strip" aria-label="Collective AI Inc., the parent company"><div className="in">
             <a href={SITE.main}><Tile mark="parent" size={22} /><span>A Collective AI Inc. platform</span></a>
             <span className="strip-links"><a href={`${SITE.divisions}/`}>All divisions</a><a className="hub" href={SITE.hub}>Not sure? Start here</a></span>
           </div></nav>

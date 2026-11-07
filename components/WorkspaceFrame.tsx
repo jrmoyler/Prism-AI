@@ -27,10 +27,10 @@ export default function WorkspaceFrame({ children }: { children: React.ReactNode
   const journey = stages.some(stage => stage.href === pathname)
   const label = labels[pathname] || (pathname.startsWith('/profile/') ? 'Profile preview' : 'Workspace')
   return <div className="workspace-frame" data-page={pathname.split('/')[1] || 'home'}>
-    <div className="context-rail">
+    <section className="context-rail" aria-label="Where you are">
       <nav aria-label="Breadcrumb"><Link href="/">PRISM AI</Link><span aria-hidden="true">/</span><span aria-current="page">{label}</span></nav>
       <a href={SITE.main}>A Collective AI platform</a>
-    </div>
+    </section>
     {journey && <nav className="journey-rail" aria-label="Your career exploration">{stages.map(stage => <Link key={stage.href} href={stage.href} aria-current={pathname === stage.href ? 'page' : undefined}><span>{stage.number}</span><b>{stage.label}</b></Link>)}</nav>}
     <div id="content-start" tabIndex={-1}>{children}</div>
     <footer className="ecosystem-footer">
