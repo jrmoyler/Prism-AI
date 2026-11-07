@@ -42,6 +42,7 @@ export default function HomePage() {
           <li><span className="folio">03 / Build</span><h3>Choose your next project.</h3><p>Use your career report to decide what to practice and which work samples to create next.</p><Link href="/reports">Open career report</Link></li>
         </ol>
       </section>
+      <figure className="studio-study"><picture><source media="(max-width: 700px)" srcSet="/img/collective-atrium-800.webp" /><img src="/img/collective-atrium-1600.webp" width="1600" height="900" loading="lazy" alt="Architectural concept of a studio atrium with a living courtyard and warm brass structure" /></picture><figcaption><span className="eyebrow">The Collective AI studio</span><p>Different disciplines.<br />One shared foundation.</p><span>Architectural concept study</span></figcaption></figure>
       <section className="team-strip"><div><p className="eyebrow">For hiring teams</p><h2>See the person behind the profile.</h2><p>Review the candidate pipeline and use role preferences as one part of a broader conversation.</p></div><Link className="action-secondary" href="/dashboard">Open hiring workspace</Link></section>
       <footer className="site-footer"><span>PRISM AI <span className="footer-expansion">/ Professional Role Identification &amp; Skill Mapping</span></span><span>Collective AI · {new Date().getFullYear()}</span></footer>
     </main>
