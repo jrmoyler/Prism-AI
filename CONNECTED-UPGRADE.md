@@ -13,7 +13,7 @@ The shared WorkspaceFrame and visual system cover `/`, `/assessment`, `/results`
 
 ## Asset provenance
 
-`public/img/collective-atrium-*.webp` are the two responsive versions of the architectural image generated for the Collective AI redesign on November 7, 2026 using OpenAI image generation. They are reused from the parent repository and explicitly labeled as a concept. The image depicts a navy stone/brass studio atrium and living courtyard, not an existing facility. Local fonts are copied from the parent repository's existing brand/font assets.
+`public/img/prism-split-*.webp` are frames of the landing page's own Three.js scene (`lib/scene/prism.ts`) rendered headlessly; they are the poster under the canvas and the fallback without WebGL. The generated parent atrium image is no longer used here. Local fonts are copied from the parent repository's existing brand/font assets.
 
 ## Validation
 

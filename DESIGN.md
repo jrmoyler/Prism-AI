@@ -84,3 +84,11 @@ Build and type checks, backend regression tests and a static design scan precede
 The career fieldbook now belongs visibly to the Collective AI web ecosystem. A persistent studio return link and a route-aware context rail orient every screen. The three assessment stages remain direct links, never implied completion indicators. Inner pages gain a shared editorial masthead, square instrument panels and consistent focus states. The candidate directory reflows into labeled records on small screens without hiding fields or duplicating mutation controls. Reports offer a plain-text copy action in addition to print; permission failures retain the report and provide recovery.
 
 Fonts are served locally from the parent repository's existing font assets. A labeled architectural concept strip on the public landing page connects the platform to the studio without claiming it is a real facility. The artwork uses the generated parent atrium with responsive WebP delivery. No generated candidate or founder portraits, invented scores, or scoring/auth changes are part of this upgrade.
+
+## Procedural signature and network pass, November 2026
+
+The landing hero now carries a procedural Three.js scene, `lib/scene/prism.ts`: a glass prism splits one white beam into five bands, one per role dimension; choosing a role in the fieldbook brightens its band (keyboard and pointer). The hero becomes three columns on wide screens so the scene has its own ground between the copy and the index. Runtime in `lib/scene/kit.ts`, lazy loader in `components/SceneHost.tsx`, three 0.182.0 from npm, poster frames in `public/img/prism-split-*.webp`.
+
+Network: a parent strip above the navigation, the official tile marks (`components/Marks.tsx`, copied from the divisions repo), one place for the other sites' addresses (`lib/links.ts`), and a footer that matches the other Collective AI sites (parent mark, tagline, hub link, nine divisions, legal line).
+
+Anti-slop pass: the gold accent word in the headline, the eyebrow labels stamped above headings on every page, trailing arrows, dot-separated label strings and the unused gradient-text utility are gone. The studio concept strip was removed rather than reused; no two sites share a background image now.
