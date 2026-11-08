@@ -11,7 +11,7 @@ const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'star
     assert.equal(response.status, status, path)
     const html = await response.text()
     assert(html.toLowerCase().includes(phrase.toLowerCase()), path)
-    if (status === 200) assert(html.includes('https://collectiveai.info/'), `${path}: studio return link`)
+    if (status === 200) assert(html.includes('https://collectiveai-roan.vercel.app/'), `${path}: studio return link`)
     if (status === 200) assert(html.includes('Collective AI network'), `${path}: network navigation`)
     console.log(path, status)
   }
